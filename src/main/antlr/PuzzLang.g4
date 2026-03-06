@@ -65,7 +65,7 @@ exprStmt : expr NEWLINE ;
 expr
     : expr '.' method=ID
         '(' (expr (',' expr)*)? ')'          # MethodCall     // r.sum() - highest precedence
-    | expr op=('*' | '/')            expr   # MulDiv
+    | expr op=('*' | '/' | '%')      expr   # MulDivMod
     | expr op=('+' | '-')            expr   # AddSub
     | expr op=('==' | '!=' | '<' | '<=' | '>' | '>=') expr  # Compare
     | expr '..' expr                         # RangeLit       // 1..10
@@ -73,6 +73,7 @@ expr
     | '(' expr ')'                           # Parens
     | 'stdin' '(' ')'                        # StdinCall      // stdin()
     | 'read' '(' expr ')'                    # ReadCall       // read("file.txt")
+    | ID '(' (expr (',' expr)*)? ')'         # FunctionCall   // gcd(a, b), primes_up_to(n)
     | INT                                    # IntLit
     | STRING                                 # StringLit
     | BOOL                                   # BoolLit

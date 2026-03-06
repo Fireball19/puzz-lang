@@ -7,34 +7,24 @@ let input = read("aoc/2015/day1/aoc2015_day1_input.txt")
 #  Part 1: What floor does Santa end up on?
 # ═══════════════════════════════════════════════════════════════════════════════
 
-let floor = 0
-for ch in input.chars():
-    if ch == "(":
-        let floor = floor + 1
-    if ch == ")":
-        let floor = floor - 1
-
-print "Part 1: " + floor
+print "Part 1: " + (input.count("(") - input.count(")"))
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Part 2: Position of first character that causes Santa to enter basement (-1)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 let floor = 0
-let position = 0
-let found = 0
+let pos = 0
 let answer = 0
 
 for ch in input.chars():
-    let position = position + 1
+    let pos = pos + 1
     if ch == "(":
         let floor = floor + 1
     if ch == ")":
         let floor = floor - 1
-    # Check if we just entered the basement and haven't found it yet
-    if floor == 0 - 1:
-        if found == 0:
-            let answer = position
-            let found = 1
-
+    if floor < 0:
+        if answer == 0:
+            let answer = pos
+            
 print "Part 2: " + answer

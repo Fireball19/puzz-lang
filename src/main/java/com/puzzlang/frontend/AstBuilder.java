@@ -1,35 +1,38 @@
 package com.puzzlang.frontend;
 
-import com.puzzlang.ast.Nodes.*;
-import com.puzzlang.ast.SourceLocation;
-import com.puzzlang.parser.PuzzLangBaseVisitor;
-import com.puzzlang.parser.PuzzLangParser;
+import com.puzzlang.ast.*;
+import static com.puzzlang.ast.Nodes.*;
+import com.puzzlang.parser.*;
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.tree.*;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import java.util.*;
+import java.util.regex.*;
 
 /**
- * Walks the ANTLR4 parse tree and builds our typed AST.
+ * AstBuilder — ANTLR parse tree → typed AST.
  *
- * Now tracks source locations for all nodes to enable precise error reporting.
+ * Transforms the CST from ANTLR into a clean AST defined in Nodes.java.
+ * Handles all expression types including the new FunctionCall.
  */
 public class AstBuilder extends PuzzLangBaseVisitor<Object> {
 
-    // Pattern to extract capture names from template strings like "move {n} from {a}"
+    // Regex to find {captureName} placeholders in match patterns
     private static final Pattern CAPTURE_PATTERN = Pattern.compile("\\{([a-zA-Z_][a-zA-Z0-9_]*)\\}");
+
+    // ── Program ─────────────────────────────────────────────────────────────
 
     @Override
     public Program visitProgram(PuzzLangParser.ProgramContext ctx) {
-        List<Stmt> stmts = ctx.statement().stream()
-                .map(this::visitStatement)
-                .collect(Collectors.toList());
-        return new Program(stmts, SourceLocation.fromContext(ctx));
+        List<Stmt> stmts = new ArrayList<>();
+        for (PuzzLangParser.StatementContext sc : ctx.statement()) {
+            stmts.add(visitStatement(sc));
+        }
+        return new Program(stmts);
     }
 
-    @Override
+    // ── Statements ──────────────────────────────────────────────────────────
+
     public Stmt visitStatement(PuzzLangParser.StatementContext ctx) {
         if (ctx.varDecl()    != null) return visitVarDecl(ctx.varDecl());
         if (ctx.printStmt()  != null) return visitPrintStmt(ctx.printStmt());
@@ -37,69 +40,76 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
         if (ctx.whileStmt()  != null) return visitWhileStmt(ctx.whileStmt());
         if (ctx.forInStmt()  != null) return visitForInStmt(ctx.forInStmt());
         if (ctx.matchStmt()  != null) return visitMatchStmt(ctx.matchStmt());
-        return visitExprStmt(ctx.exprStmt());
+        if (ctx.exprStmt()   != null) return visitExprStmt(ctx.exprStmt());
+        throw new RuntimeException("Unknown statement: " + ctx.getText());
     }
 
     @Override
     public VarDecl visitVarDecl(PuzzLangParser.VarDeclContext ctx) {
-        return new VarDecl(
-                ctx.ID().getText(),
-                visitExprCtx(ctx.expr()),
-                SourceLocation.fromContext(ctx)
-        );
+        String name = ctx.ID().getText();
+        Expr value = visitExprCtx(ctx.expr());
+        return new VarDecl(name, value, SourceLocation.fromContext(ctx));
     }
 
     @Override
     public PrintStmt visitPrintStmt(PuzzLangParser.PrintStmtContext ctx) {
-        return new PrintStmt(
-                visitExprCtx(ctx.expr()),
-                SourceLocation.fromContext(ctx)
-        );
+        Expr value = visitExprCtx(ctx.expr());
+        return new PrintStmt(value, SourceLocation.fromContext(ctx));
     }
 
     @Override
     public IfStmt visitIfStmt(PuzzLangParser.IfStmtContext ctx) {
         Expr cond = visitExprCtx(ctx.expr());
-        List<PuzzLangParser.StatementContext> all = ctx.statement();
+
+        List<PuzzLangParser.StatementContext> allStmts = ctx.statement();
         int elseIdx = findElseIndex(ctx);
 
-        List<Stmt> body = elseIdx < 0
-                ? mapStmts(all, 0, all.size())
-                : mapStmts(all, 0, elseIdx);
-        List<Stmt> elseBody = elseIdx < 0
-                ? List.of()
-                : mapStmts(all, elseIdx, all.size());
-
+        List<Stmt> body;
+        List<Stmt> elseBody;
+        if (elseIdx < 0) {
+            body = mapStmts(allStmts, 0, allStmts.size());
+            elseBody = List.of();
+        } else {
+            body = mapStmts(allStmts, 0, elseIdx);
+            elseBody = mapStmts(allStmts, elseIdx, allStmts.size());
+        }
         return new IfStmt(cond, body, elseBody, SourceLocation.fromContext(ctx));
     }
 
     @Override
     public WhileStmt visitWhileStmt(PuzzLangParser.WhileStmtContext ctx) {
         Expr cond = visitExprCtx(ctx.expr());
-        List<Stmt> body = ctx.statement().stream()
-                .map(this::visitStatement).collect(Collectors.toList());
+        List<Stmt> body = new ArrayList<>();
+        for (PuzzLangParser.StatementContext sc : ctx.statement()) {
+            body.add(visitStatement(sc));
+        }
         return new WhileStmt(cond, body, SourceLocation.fromContext(ctx));
     }
 
     @Override
     public ForIn visitForInStmt(PuzzLangParser.ForInStmtContext ctx) {
-        String varName = ctx.ID().getText();
-        Expr iterable  = visitExprCtx(ctx.expr());
-        List<Stmt> body = ctx.statement().stream()
-                .map(this::visitStatement).collect(Collectors.toList());
-        return new ForIn(varName, iterable, body, SourceLocation.fromContext(ctx));
+        String var = ctx.ID().getText();
+        Expr iterable = visitExprCtx(ctx.expr());
+        List<Stmt> body = new ArrayList<>();
+        for (PuzzLangParser.StatementContext sc : ctx.statement()) {
+            body.add(visitStatement(sc));
+        }
+        return new ForIn(var, iterable, body, SourceLocation.fromContext(ctx));
     }
 
     // ── Match Statement ─────────────────────────────────────────────────────
 
+    @Override
     public MatchStmt visitMatchStmt(PuzzLangParser.MatchStmtContext ctx) {
         Expr subject = visitExprCtx(ctx.expr());
-        List<MatchArm> arms = ctx.matchArm().stream()
-                .map(this::visitMatchArm)
-                .collect(Collectors.toList());
+        List<MatchArm> arms = new ArrayList<>();
+        for (PuzzLangParser.MatchArmContext armCtx : ctx.matchArm()) {
+            arms.add(visitMatchArm(armCtx));
+        }
         return new MatchStmt(subject, arms, SourceLocation.fromContext(ctx));
     }
 
+    @Override
     public MatchArm visitMatchArm(PuzzLangParser.MatchArmContext ctx) {
         MatchPattern pattern = visitMatchPattern(ctx.matchPattern());
         Stmt body = visitStatement(ctx.statement());
@@ -109,13 +119,9 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
     public MatchPattern visitMatchPattern(PuzzLangParser.MatchPatternContext ctx) {
         SourceLocation loc = SourceLocation.fromContext(ctx);
 
-        if (ctx instanceof PuzzLangParser.PatternStringContext c) {
-            String raw = c.STRING().getText();
-            // Remove surrounding quotes
+        if (ctx instanceof PuzzLangParser.PatternStringContext ps) {
+            String raw = ps.STRING().getText();
             String template = raw.substring(1, raw.length() - 1);
-            // Process escape sequences
-            template = unescapeString(template);
-            // Extract capture names
             List<String> captureNames = extractCaptureNames(template);
             return new StringPattern(template, captureNames, loc);
         }
@@ -124,11 +130,11 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
             return new WildcardPattern(loc);
         }
 
-        throw new RuntimeException("Unknown pattern type: " + ctx.getClass().getSimpleName());
+        throw new RuntimeException("Unknown match pattern: " + ctx.getClass().getSimpleName());
     }
 
     /**
-     * Extract capture variable names from a pattern template.
+     * Extracts capture variable names from a pattern template.
      * "move {n} from {a} to {b}" → ["n", "a", "b"]
      */
     private List<String> extractCaptureNames(String template) {
@@ -170,49 +176,36 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
         if (ctx instanceof PuzzLangParser.ParensContext c)
             return visitExprCtx(c.expr());
 
-        if (ctx instanceof PuzzLangParser.MulDivContext c)
-            return new BinOp(
-                    visitExprCtx(c.expr(0)),
-                    c.op.getText(),
-                    visitExprCtx(c.expr(1)),
-                    loc
-            );
+        // ── Binary operators ─────────────────────────────────────────────
+        if (ctx instanceof PuzzLangParser.MulDivModContext c) {
+            Expr left = visitExprCtx(c.expr(0));
+            Expr right = visitExprCtx(c.expr(1));
+            return new BinOp(left, c.op.getText(), right, loc);
+        }
 
-        if (ctx instanceof PuzzLangParser.AddSubContext c)
-            return new BinOp(
-                    visitExprCtx(c.expr(0)),
-                    c.op.getText(),
-                    visitExprCtx(c.expr(1)),
-                    loc
-            );
+        if (ctx instanceof PuzzLangParser.AddSubContext c) {
+            Expr left = visitExprCtx(c.expr(0));
+            Expr right = visitExprCtx(c.expr(1));
+            return new BinOp(left, c.op.getText(), right, loc);
+        }
 
-        if (ctx instanceof PuzzLangParser.CompareContext c)
-            return new BinOp(
-                    visitExprCtx(c.expr(0)),
-                    c.op.getText(),
-                    visitExprCtx(c.expr(1)),
-                    loc
-            );
+        if (ctx instanceof PuzzLangParser.CompareContext c) {
+            Expr left = visitExprCtx(c.expr(0));
+            Expr right = visitExprCtx(c.expr(1));
+            return new BinOp(left, c.op.getText(), right, loc);
+        }
 
-        // ── Range literals ─────────────────────────────────────────────────
+        // ── Range expressions ────────────────────────────────────────────
         if (ctx instanceof PuzzLangParser.RangeLitContext c)
-            return new RangeLit(
-                    visitExprCtx(c.expr(0)),
-                    visitExprCtx(c.expr(1)),
-                    loc
-            );
+            return new RangeLit(visitExprCtx(c.expr(0)), visitExprCtx(c.expr(1)), loc);
 
         if (ctx instanceof PuzzLangParser.RangeInclusiveContext c)
-            return new RangeInclusive(
-                    visitExprCtx(c.expr(0)),
-                    visitExprCtx(c.expr(1)),
-                    loc
-            );
+            return new RangeInclusive(visitExprCtx(c.expr(0)), visitExprCtx(c.expr(1)), loc);
 
-        // ── Method calls ───────────────────────────────────────────────────
+        // ── Method call: receiver.method(args) ───────────────────────────
         if (ctx instanceof PuzzLangParser.MethodCallContext c) {
-            Expr receiver  = visitExprCtx(c.expr(0));
-            String method  = c.method.getText();
+            Expr receiver = visitExprCtx(c.expr(0));
+            String method = c.method.getText();
             // args: expr(1)..expr(n)  (expr(0) is the receiver)
             List<Expr> args = new ArrayList<>();
             for (int i = 1; i < c.expr().size(); i++) {
@@ -221,7 +214,17 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
             return new MethodCall(receiver, method, args, loc);
         }
 
-        // ── I/O built-ins ──────────────────────────────────────────────────
+        // ── Global function call: name(args) ─────────────────────────────
+        if (ctx instanceof PuzzLangParser.FunctionCallContext c) {
+            String name = c.ID().getText();
+            List<Expr> args = new ArrayList<>();
+            for (PuzzLangParser.ExprContext exprCtx : c.expr()) {
+                args.add(visitExprCtx(exprCtx));
+            }
+            return new FunctionCall(name, args, loc);
+        }
+
+        // ── I/O built-ins ────────────────────────────────────────────────
         if (ctx instanceof PuzzLangParser.StdinCallContext)
             return new StdinCall(loc);
 

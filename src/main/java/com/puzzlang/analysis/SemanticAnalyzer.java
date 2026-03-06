@@ -1,49 +1,49 @@
 package com.puzzlang.analysis;
 
-import com.puzzlang.ast.Nodes.*;
-import com.puzzlang.ast.SourceLocation;
-import com.puzzlang.diagnostic.DiagnosticCollector;
+import com.puzzlang.ast.*;
+import static com.puzzlang.ast.Nodes.*;
+import com.puzzlang.diagnostic.*;
+import com.puzzlang.runtime.builtins.MathBuiltins;
 
 import java.util.*;
 
 /**
- * Semantic analysis pass for PuzzLang.
+ * SemanticAnalyzer — performs semantic analysis on the AST.
  *
- * Currently performs:
- * - Variable scope tracking (undefined variable detection)
- * - Unused variable warnings
+ * Currently checks:
+ *   - Variable definitions before use
+ *   - Unused variable warnings
+ *   - Variable shadowing warnings
+ *   - Unknown function warnings
  *
- * Future additions:
- * - Type checking (when types are added)
- * - Constant folding hints
- * - Dead code detection
+ * Could be extended to check:
+ *   - Type compatibility (when types are added)
+ *   - Function arity
+ *   - Unreachable code
  */
 public class SemanticAnalyzer {
 
+    // Error/warning codes
+    private static final String E_UNDEFINED_VAR = "E001";
+    private static final String W_UNUSED_VAR = "W001";
+    private static final String W_SHADOWED_VAR = "W002";
+    private static final String W_UNKNOWN_FUNCTION = "W003";
+
     private final DiagnosticCollector diagnostics;
     private final Deque<Scope> scopes = new ArrayDeque<>();
-
-    // Error codes
-    public static final String E_UNDEFINED_VAR = "E001";
-    public static final String E_INVALID_ITERABLE = "E002";
-    public static final String W_UNUSED_VAR = "W001";
-    public static final String W_SHADOWED_VAR = "W002";
 
     public SemanticAnalyzer(DiagnosticCollector diagnostics) {
         this.diagnostics = diagnostics;
     }
 
     /**
-     * Analyzes the program and reports any semantic errors/warnings.
-     * Call diagnostics.throwIfErrors() after to halt on errors.
+     * Analyzes the given program AST.
      */
     public void analyze(Program program) {
         pushScope("global");
-
         for (Stmt stmt : program.stmts()) {
             analyzeStmt(stmt);
         }
-
         checkUnusedVariables();
         popScope();
     }
@@ -52,21 +52,13 @@ public class SemanticAnalyzer {
 
     private void analyzeStmt(Stmt stmt) {
         switch (stmt) {
-            case Program p -> p.stmts().forEach(this::analyzeStmt);
-
             case VarDecl vd -> {
-                // Analyze the value first (before defining the variable)
                 analyzeExpr(vd.value());
-
-                // Check for shadowing in current scope
-                if (currentScope().isDefined(vd.name())) {
-                    // PuzzLang allows re-assignment via `let`, so this is just updating
-                    currentScope().markUsed(vd.name());
-                } else if (isDefinedInOuterScope(vd.name())) {
+                // Check if we're shadowing an outer variable
+                if (isDefinedInOuterScope(vd.name())) {
                     diagnostics.warning(vd.location(), W_SHADOWED_VAR,
                             "Variable '%s' shadows outer variable", vd.name());
                 }
-
                 define(vd.name(), vd.location());
             }
 
@@ -141,6 +133,8 @@ public class SemanticAnalyzer {
             }
 
             case ExprStmt es -> analyzeExpr(es.expr());
+
+            case Program p -> p.stmts().forEach(this::analyzeStmt);
         }
     }
 
@@ -183,6 +177,18 @@ public class SemanticAnalyzer {
                 }
             }
 
+            case FunctionCall fc -> {
+                // Check if function exists
+                if (!MathBuiltins.hasFunction(fc.name())) {
+                    diagnostics.warning(fc.location(), W_UNKNOWN_FUNCTION,
+                            "Unknown function '%s'", fc.name());
+                }
+                // Analyze all arguments
+                for (Expr arg : fc.args()) {
+                    analyzeExpr(arg);
+                }
+            }
+
             case StdinCall ignored -> {}
 
             case ReadCall rc -> analyzeExpr(rc.path());
@@ -217,7 +223,10 @@ public class SemanticAnalyzer {
     private boolean isDefinedInOuterScope(String name) {
         boolean first = true;
         for (Scope scope : scopes) {
-            if (first) { first = false; continue; }
+            if (first) {
+                first = false;
+                continue; // Skip current scope
+            }
             if (scope.isDefined(name)) return true;
         }
         return false;
@@ -234,9 +243,9 @@ public class SemanticAnalyzer {
 
     private void checkUnusedVariables() {
         Scope scope = currentScope();
-        for (var entry : scope.getUnused().entrySet()) {
-            diagnostics.warning(entry.getValue(), W_UNUSED_VAR,
-                    "Variable '%s' is declared but never used", entry.getKey());
+        for (String name : scope.getUnused()) {
+            diagnostics.warning(scope.getLocation(name), W_UNUSED_VAR,
+                    "Variable '%s' is never used", name);
         }
     }
 
@@ -244,7 +253,7 @@ public class SemanticAnalyzer {
 
     private static class Scope {
         private final String name;
-        private final Map<String, SourceLocation> variables = new HashMap<>();
+        private final Map<String, SourceLocation> definitions = new HashMap<>();
         private final Set<String> used = new HashSet<>();
 
         Scope(String name) {
@@ -252,30 +261,25 @@ public class SemanticAnalyzer {
         }
 
         void define(String varName, SourceLocation location) {
-            variables.put(varName, location);
+            definitions.put(varName, location);
         }
 
         boolean isDefined(String varName) {
-            return variables.containsKey(varName);
+            return definitions.containsKey(varName);
         }
 
         void markUsed(String varName) {
             used.add(varName);
         }
 
-        Map<String, SourceLocation> getUnused() {
-            Map<String, SourceLocation> unused = new HashMap<>();
-            for (var entry : variables.entrySet()) {
-                if (!used.contains(entry.getKey())) {
-                    unused.put(entry.getKey(), entry.getValue());
-                }
-            }
-            return unused;
+        SourceLocation getLocation(String varName) {
+            return definitions.get(varName);
         }
 
-        @Override
-        public String toString() {
-            return "Scope[" + name + "]";
+        Set<String> getUnused() {
+            Set<String> unused = new HashSet<>(definitions.keySet());
+            unused.removeAll(used);
+            return unused;
         }
     }
 }

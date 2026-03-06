@@ -17,6 +17,7 @@ import static org.objectweb.asm.Opcodes.*;
  * Emits:
  *   - Range construction: INVOKESTATIC PuzzRuntime.makeRange/makeRangeInclusive
  *   - Method calls: INVOKESTATIC PuzzRuntime.callMethod
+ *   - Function calls: INVOKESTATIC PuzzRuntime.callFunction
  *   - For-in loops: get iterator, loop with hasNext/next
  *   - I/O calls: INVOKESTATIC PuzzIO.stdin/readFile
  *   - Match statements: pattern matching with captures
@@ -302,7 +303,10 @@ public class BytecodeEmitter {
             // ── Method calls: receiver.method(arg0, arg1, ...) ───────────
             case MethodCall mc -> emitMethodCall(mc);
 
-            // ── I/O built-ins ─────────────────────────────────────────────
+            // ── Global function calls: name(arg0, arg1, ...) ─────────────
+            case FunctionCall fc -> emitFunctionCall(fc);
+
+            // ── I/O built-ins ────────────────────────────────────────────
             case StdinCall sc -> {
                 mv.visitMethodInsn(INVOKESTATIC, IO, "stdin",
                         "()Ljava/lang/Object;", false);
@@ -343,6 +347,33 @@ public class BytecodeEmitter {
                 false);
     }
 
+    /**
+     * Compiles  name(arg0, arg1, ...)
+     *
+     * We build an Object[] for the varargs and call:
+     *   PuzzRuntime.callFunction(String name, Object... args)
+     */
+    private void emitFunctionCall(FunctionCall fc) {
+        mv.visitLdcInsn(fc.name());                     // function name
+
+        // Build Object[] args array
+        List<Expr> args = fc.args();
+        mv.visitLdcInsn(args.size());
+        mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
+
+        for (int i = 0; i < args.size(); i++) {
+            mv.visitInsn(DUP);
+            mv.visitLdcInsn(i);
+            emitExpr(args.get(i));
+            mv.visitInsn(AASTORE);
+        }
+
+        mv.visitMethodInsn(INVOKESTATIC, RUNTIME, "callFunction",
+                "(Ljava/lang/String;[Ljava/lang/Object;)" +
+                "Ljava/lang/Object;",
+                false);
+    }
+
     private void emitBinOp(BinOp op) {
         emitExpr(op.left());
         emitExpr(op.right());
@@ -351,6 +382,7 @@ public class BytecodeEmitter {
             case "-"  -> "sub";
             case "*"  -> "mul";
             case "/"  -> "div";
+            case "%"  -> "mod";  // NEW: modulo operator
             case "==" -> "eq";
             case "!=" -> "neq";
             case "<"  -> "lt";

@@ -1,0 +1,194 @@
+# PuzzLang — Math Helpers Demo
+# Run: ./gradlew run --args="examples/math.puzz"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  GCD and LCM
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print "=== GCD and LCM ==="
+
+# Global function style
+print "gcd(48, 18) = " + gcd(48, 18)
+print "lcm(4, 6) = " + lcm(4, 6)
+
+# Method style
+print "48.gcd(18) = " + 48.gcd(18)
+print "4.lcm(6) = " + 4.lcm(6)
+
+# Multiple arguments
+print "gcd(12, 18, 24) = " + gcd(12, 18, 24)
+print "lcm(2, 3, 4, 5) = " + lcm(2, 3, 4, 5)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Prime Numbers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print "\n=== Prime Numbers ==="
+
+# Generate primes up to a limit
+print "Primes up to 30: " + primes_up_to(30)
+
+# Check if a number is prime
+print "17.is_prime() = " + 17.is_prime()
+print "is_prime(97) = " + is_prime(97)
+print "100.is_prime() = " + 100.is_prime()
+
+# Get the nth prime
+print "10th prime: " + nth_prime(10)
+
+# Prime factorization
+print "prime_factors(60) = " + prime_factors(60)
+print "120.prime_factors() = " + 120.prime_factors()
+
+# All divisors
+print "divisors(24) = " + divisors(24)
+print "36.factors() = " + 36.factors()
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Digit Operations
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print "\n=== Digit Operations ==="
+
+let n = 12345
+
+# Extract digits
+print "digits(12345) = " + digits(n)
+print "12345.digits() = " + n.digits()
+
+# Digit sum
+print "digit_sum(12345) = " + digit_sum(n)
+
+# Reverse digits
+print "reverse_digits(12345) = " + reverse_digits(n)
+
+# Palindrome check
+print "121.is_palindrome() = " + 121.is_palindrome()
+print "123.is_palindrome() = " + 123.is_palindrome()
+
+# Reconstruct from digits
+let d = digits(9876)
+print "from_digits([9,8,7,6]) = " + from_digits(d)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Arithmetic
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print "\n=== Arithmetic ==="
+
+# Absolute value
+let neg = 0 - 42
+print "abs(-42) = " + abs(neg)
+print "(-42).abs() = " + neg.abs()
+
+# Sign
+print "sign(42) = " + sign(42)
+print "sign(-7) = " + sign(0 - 7)
+print "sign(0) = " + sign(0)
+
+# Power
+print "2.pow(10) = " + 2.pow(10)
+print "pow(3, 4) = " + pow(3, 4)
+
+# Square root (integer)
+print "sqrt(100) = " + sqrt(100)
+print "sqrt(50) = " + sqrt(50)
+
+# Min/Max
+print "min(5, 2, 8, 1) = " + min(5, 2, 8, 1)
+print "max(5, 2, 8, 1) = " + max(5, 2, 8, 1)
+
+# Clamp
+print "clamp(15, 0, 10) = " + clamp(15, 0, 10)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Modular Arithmetic
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print "\n=== Modular Arithmetic ==="
+
+# Modulo operator
+print "17 % 5 = " + 17 % 5
+
+# mod function (always positive)
+print "mod(-5, 3) = " + mod(0 - 5, 3)
+
+# Modular exponentiation
+print "mod_pow(2, 100, 1000000007) = " + mod_pow(2, 100, 1000000007)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Bit Operations
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print "\n=== Bit Operations ==="
+
+print "popcount(255) = " + popcount(255)
+print "7.bit_count() = " + 7.bit_count()
+print "highest_bit(100) = " + highest_bit(100)
+print "lowest_bit(12) = " + lowest_bit(12)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Base Conversion
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print "\n=== Base Conversion ==="
+
+print "42.to_binary() = " + 42.to_binary()
+print "255.to_hex() = " + 255.to_hex()
+print "to_base(100, 8) = " + to_base(100, 8)
+print "from_base(\"1010\", 2) = " + from_base("1010", 2)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Combinatorics
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print "\n=== Combinatorics ==="
+
+print "factorial(10) = " + factorial(10)
+print "binomial(10, 3) = " + binomial(10, 3)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Predicates
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print "\n=== Predicates ==="
+
+print "42.is_even() = " + 42.is_even()
+print "7.is_odd() = " + 7.is_odd()
+print "25.is_perfect_square() = " + 25.is_perfect_square()
+print "26.is_perfect_square() = " + 26.is_perfect_square()
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  AoC-style Examples
+# ═══════════════════════════════════════════════════════════════════════════════
+
+print "\n=== AoC-style Examples ==="
+
+# Project Euler #1: Sum of multiples of 3 or 5 below 1000
+let sum = 0
+for n in 1..1000:
+    if n % 3 == 0:
+        let sum = sum + n
+    else:
+        if n % 5 == 0:
+            let sum = sum + n
+print "Sum of multiples of 3 or 5 below 1000: " + sum
+
+# Sum of primes below 100
+let primes = primes_up_to(100)
+print "Sum of primes below 100: " + primes.sum()
+
+# LCM of 1..10 (used in AoC for cycle detection)
+let result = 1
+for n in 1..=10:
+    let result = lcm(result, n)
+print "LCM of 1..10: " + result
+
+# Count palindromic primes below 1000
+let count = 0
+for p in primes_up_to(1000):
+    if p.is_palindrome():
+        let count = count + 1
+print "Palindromic primes below 1000: " + count
+
+print "\n=== Done! ==="

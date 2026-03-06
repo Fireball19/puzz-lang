@@ -1,9 +1,6 @@
 package com.puzzlang.runtime;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.StringJoiner;
+import java.util.*;
 
 /**
  * PuzzList — a first-class list value for PuzzLang.
@@ -18,6 +15,8 @@ import java.util.StringJoiner;
  *
  *   Access:
  *     list.count()              → number of elements
+ *     list.length()             → alias for count
+ *     list.size()               → alias for count
  *     list.first()              → first element (error if empty)
  *     list.last()               → last element (error if empty)
  *     list.get(index)           → element at index (0-based)
@@ -26,6 +25,14 @@ import java.util.StringJoiner;
  *   Transformation:
  *     list.join(sep)            → concatenate with separator
  *     list.reversed()           → new list in reverse order
+ *     list.sorted()             → new sorted list
+ *     list.unique()             → new list with duplicates removed
+ *
+ *   Aggregation:
+ *     list.sum()                → sum of numeric elements
+ *     list.product()            → product of numeric elements
+ *     list.min()                → minimum value
+ *     list.max()                → maximum value
  *
  *   Search:
  *     list.contains(val)        → true if val is in list
@@ -55,22 +62,22 @@ public class PuzzList implements Iterable<Object> {
 
     public Object first() {
         if (elements.isEmpty()) {
-            throw new RuntimeException("PuzzLang: first() on empty list");
+            throw new PuzzLangException("first() on empty list");
         }
         return elements.get(0);
     }
 
     public Object last() {
         if (elements.isEmpty()) {
-            throw new RuntimeException("PuzzLang: last() on empty list");
+            throw new PuzzLangException("last() on empty list");
         }
         return elements.get(elements.size() - 1);
     }
 
     public Object get(int index) {
         if (index < 0 || index >= elements.size()) {
-            throw new RuntimeException("PuzzLang: list index " + index + 
-                " out of bounds (size=" + elements.size() + ")");
+            throw new PuzzLangException("list index %d out of bounds (size=%d)", 
+                    index, elements.size());
         }
         return elements.get(index);
     }
@@ -79,6 +86,10 @@ public class PuzzList implements Iterable<Object> {
 
     public void add(Object item) {
         elements.add(item);
+    }
+
+    public void addAll(PuzzList other) {
+        elements.addAll(other.elements);
     }
 
     // ── Transformation ───────────────────────────────────────────────────────
@@ -93,8 +104,79 @@ public class PuzzList implements Iterable<Object> {
 
     public PuzzList reversed() {
         List<Object> rev = new ArrayList<>(elements);
-        java.util.Collections.reverse(rev);
+        Collections.reverse(rev);
         return new PuzzList(rev);
+    }
+
+    /**
+     * Returns a new sorted list.
+     * Elements must be comparable (typically numbers or strings).
+     */
+    @SuppressWarnings("unchecked")
+    public PuzzList sorted() {
+        List<Object> copy = new ArrayList<>(elements);
+        copy.sort((a, b) -> {
+            // Handle numeric comparison
+            if (a instanceof Number && b instanceof Number) {
+                double da = ((Number) a).doubleValue();
+                double db = ((Number) b).doubleValue();
+                return Double.compare(da, db);
+            }
+            // Handle comparable types
+            if (a instanceof Comparable && b instanceof Comparable) {
+                try {
+                    return ((Comparable<Object>) a).compareTo(b);
+                } catch (ClassCastException e) {
+                    // Fall through to string comparison
+                }
+            }
+            // Fallback: compare as strings
+            return String.valueOf(a).compareTo(String.valueOf(b));
+        });
+        return new PuzzList(copy);
+    }
+
+    /**
+     * Returns a new list with duplicates removed (preserves first occurrence order).
+     */
+    public PuzzList unique() {
+        Set<Object> seen = new LinkedHashSet<>();
+        for (Object elem : elements) {
+            seen.add(elem);
+        }
+        return new PuzzList(new ArrayList<>(seen));
+    }
+
+    /**
+     * Returns a new list with elements in the specified range.
+     */
+    public PuzzList slice(int start, int end) {
+        int actualStart = Math.max(0, start);
+        int actualEnd = Math.min(elements.size(), end);
+        if (actualStart >= actualEnd) {
+            return new PuzzList();
+        }
+        return new PuzzList(elements.subList(actualStart, actualEnd));
+    }
+
+    /**
+     * Returns a new list with elements from start to end.
+     */
+    public PuzzList slice(int start) {
+        return slice(start, elements.size());
+    }
+
+    /**
+     * Count occurrences of a value in the list.
+     */
+    public int countOccurrences(Object value) {
+        int count = 0;
+        for (Object elem : elements) {
+            if (Objects.equals(elem, value)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     // ── Search ───────────────────────────────────────────────────────────────
@@ -107,7 +189,77 @@ public class PuzzList implements Iterable<Object> {
         return elements.indexOf(value);
     }
 
-    // ── Iterable ─────────────────────────────────────────────────────────────
+    public int lastIndexOf(Object value) {
+        return elements.lastIndexOf(value);
+    }
+
+    /**
+     * Count occurrences of a value.
+     */
+    public int count(Object value) {
+        int count = 0;
+        for (Object elem : elements) {
+            if (Objects.equals(elem, value)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // ── Aggregation ──────────────────────────────────────────────────────────
+
+    /**
+     * Sum of all numeric elements.
+     */
+    public long sum() {
+        long sum = 0;
+        for (Object elem : elements) {
+            sum += toLong(elem);
+        }
+        return sum;
+    }
+
+    /**
+     * Product of all numeric elements.
+     */
+    public long product() {
+        if (elements.isEmpty()) return 1;
+        long product = 1;
+        for (Object elem : elements) {
+            product *= toLong(elem);
+        }
+        return product;
+    }
+
+    /**
+     * Minimum value (numeric comparison).
+     */
+    public long min() {
+        if (elements.isEmpty()) {
+            throw new PuzzLangException("min() on empty list");
+        }
+        long min = toLong(elements.get(0));
+        for (int i = 1; i < elements.size(); i++) {
+            min = Math.min(min, toLong(elements.get(i)));
+        }
+        return min;
+    }
+
+    /**
+     * Maximum value (numeric comparison).
+     */
+    public long max() {
+        if (elements.isEmpty()) {
+            throw new PuzzLangException("max() on empty list");
+        }
+        long max = toLong(elements.get(0));
+        for (int i = 1; i < elements.size(); i++) {
+            max = Math.max(max, toLong(elements.get(i)));
+        }
+        return max;
+    }
+
+    // ── Iteration ────────────────────────────────────────────────────────────
 
     @Override
     public Iterator<Object> iterator() {
@@ -120,8 +272,8 @@ public class PuzzList implements Iterable<Object> {
     public String toString() {
         StringJoiner sj = new StringJoiner(", ", "[", "]");
         for (Object elem : elements) {
-            if (elem instanceof String s) {
-                sj.add("\"" + s + "\"");
+            if (elem instanceof String) {
+                sj.add("\"" + elem + "\"");
             } else {
                 sj.add(String.valueOf(elem));
             }
@@ -131,10 +283,9 @@ public class PuzzList implements Iterable<Object> {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof PuzzList other) {
-            return elements.equals(other.elements);
-        }
-        return false;
+        if (this == obj) return true;
+        if (!(obj instanceof PuzzList other)) return false;
+        return elements.equals(other.elements);
     }
 
     @Override
@@ -142,9 +293,19 @@ public class PuzzList implements Iterable<Object> {
         return elements.hashCode();
     }
 
-    // ── Access to underlying list (for runtime) ──────────────────────────────
+    // ── Internal ─────────────────────────────────────────────────────────────
 
-    public List<Object> getElements() {
-        return elements;
+    /**
+     * Returns the underlying list (for internal use).
+     */
+    public List<Object> toJavaList() {
+        return new ArrayList<>(elements);
+    }
+
+    private static long toLong(Object obj) {
+        if (obj instanceof Long l) return l;
+        if (obj instanceof Integer i) return i.longValue();
+        if (obj instanceof Number n) return n.longValue();
+        throw new PuzzLangException("expected number, got %s", obj.getClass().getSimpleName());
     }
 }

@@ -10,7 +10,8 @@ import java.util.List;
  *
  * Node types:
  *   Statements: Program, VarDecl, PrintStmt, IfStmt, WhileStmt, ForIn, MatchStmt, ExprStmt
- *   Expressions: IntLit, StringLit, BoolLit, VarRef, BinOp, RangeLit, RangeInclusive, MethodCall, StdinCall, ReadCall
+ *   Expressions: IntLit, StringLit, BoolLit, VarRef, BinOp, RangeLit, RangeInclusive, 
+ *                MethodCall, FunctionCall, StdinCall, ReadCall
  *   Patterns: StringPattern, WildcardPattern
  */
 public class Nodes {
@@ -122,7 +123,7 @@ public class Nodes {
     // ── Expressions ─────────────────────────────────────────────────────────
 
     public sealed interface Expr permits IntLit, StringLit, BoolLit, VarRef, BinOp,
-            RangeLit, RangeInclusive, MethodCall, StdinCall, ReadCall {
+            RangeLit, RangeInclusive, MethodCall, FunctionCall, StdinCall, ReadCall {
         SourceLocation location();
     }
 
@@ -187,6 +188,20 @@ public class Nodes {
     public record MethodCall(Expr receiver, String method, List<Expr> args, SourceLocation location) implements Expr {
         public MethodCall(Expr receiver, String method, List<Expr> args) {
             this(receiver, method, args, receiver.location());
+        }
+    }
+
+    /**
+     * name(arg0, arg1, ...) — global function call
+     * Examples:
+     *   gcd(12, 8)
+     *   lcm(4, 6)
+     *   primes_up_to(100)
+     *   abs(-5)
+     */
+    public record FunctionCall(String name, List<Expr> args, SourceLocation location) implements Expr {
+        public FunctionCall(String name, List<Expr> args) {
+            this(name, args, SourceLocation.UNKNOWN);
         }
     }
 
