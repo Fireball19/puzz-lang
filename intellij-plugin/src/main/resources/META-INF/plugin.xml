@@ -1,0 +1,51 @@
+<idea-plugin>
+    <id>com.puzzlang.intellij</id>
+    <name>PuzzLang</name>
+    <vendor url="https://github.com/puzzlang/puzz-lang">PuzzLang</vendor>
+
+    <description><![CDATA[
+    Language support for PuzzLang (.puzz files).
+    <br/><br/>
+    PuzzLang is a domain-specific language for solving coding puzzles
+    and challenges like Advent of Code.
+    <br/><br/>
+    <b>Features:</b>
+    <ul>
+        <li>File type recognition for .puzz files</li>
+        <li>Custom file icon</li>
+        <li>Syntax highlighting (coming soon)</li>
+    </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Language Definition -->
+        <fileType
+                name="PuzzLang"
+                implementationClass="com.puzzlang.intellij.PuzzFileType"
+                fieldName="INSTANCE"
+                language="PuzzLang"
+                extensions="puzz"/>
+
+        <!-- Language Registration -->
+        <lang.parserDefinition
+                language="PuzzLang"
+                implementationClass="com.puzzlang.intellij.PuzzParserDefinition"/>
+
+        <!-- Syntax Highlighter -->
+        <lang.syntaxHighlighterFactory
+                language="PuzzLang"
+                implementationClass="com.puzzlang.intellij.PuzzSyntaxHighlighterFactory"/>
+
+        <!-- Commenter -->
+        <lang.commenter
+                language="PuzzLang"
+                implementationClass="com.puzzlang.intellij.PuzzCommenter"/>
+
+        <!-- Brace Matcher -->
+        <lang.braceMatcher
+                language="PuzzLang"
+                implementationClass="com.puzzlang.intellij.PuzzBraceMatcher"/>
+    </extensions>
+</idea-plugin>

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <defs>
+    <linearGradient id="puzzGradientDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#818CF8"/>
+      <stop offset="100%" style="stop-color:#A78BFA"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Puzzle piece shape -->
+  <path d="M3 2h3.5c0-1.1.9-2 2-2s2 .9 2 2H14c.6 0 1 .4 1 1v3.5c1.1 0 2 .9 2 2s-.9 2-2 2V14c0 .6-.4 1-1 1h-3.5c0 1.1-.9 2-2 2s-2-.9-2-2H3c-.6 0-1-.4-1-1v-3.5c-1.1 0-2-.9-2-2s.9-2 2-2V3c0-.6.4-1 1-1z" 
+        fill="url(#puzzGradientDark)"
+        transform="scale(0.9) translate(0.8, 0.8)"/>
+  
+  <!-- Inner highlight -->
+  <path d="M4 3.5h2.8c0-.85.7-1.5 1.5-1.5s1.5.65 1.5 1.5H12.5c.3 0 .5.2.5.5v2.8c.85 0 1.5.7 1.5 1.5s-.65 1.5-1.5 1.5V12.5c0 .3-.2.5-.5.5H9.8c0 .85-.7 1.5-1.5 1.5s-1.5-.65-1.5-1.5H4c-.3 0-.5-.2-.5-.5V9.8c-.85 0-1.5-.7-1.5-1.5s.65-1.5 1.5-1.5V4c0-.3.2-.5.5-.5z" 
+        fill="none" 
+        stroke="rgba(255,255,255,0.4)" 
+        stroke-width="0.5"
+        transform="scale(0.9) translate(0.8, 0.8)"/>
+  
+  <!-- Code brackets hint -->
+  <text x="4.0" y="10.0" font-family="monospace" font-size="5" font-weight="bold" fill="white">&lt;/&gt;</text>
+</svg>

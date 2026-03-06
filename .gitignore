@@ -45,3 +45,6 @@ bin/
 
 ### ANTLR ###
 /src/main/generated-antlr/
+
+### IntelliJ Plugin ###
+.intellijPlatform/
