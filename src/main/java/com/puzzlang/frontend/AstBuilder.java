@@ -7,6 +7,8 @@ import com.puzzlang.parser.PuzzLangParser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -15,6 +17,9 @@ import java.util.stream.Collectors;
  * Now tracks source locations for all nodes to enable precise error reporting.
  */
 public class AstBuilder extends PuzzLangBaseVisitor<Object> {
+
+    // Pattern to extract capture names from template strings like "move {n} from {a}"
+    private static final Pattern CAPTURE_PATTERN = Pattern.compile("\\{([a-zA-Z_][a-zA-Z0-9_]*)\\}");
 
     @Override
     public Program visitProgram(PuzzLangParser.ProgramContext ctx) {
@@ -31,6 +36,7 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
         if (ctx.ifStmt()     != null) return visitIfStmt(ctx.ifStmt());
         if (ctx.whileStmt()  != null) return visitWhileStmt(ctx.whileStmt());
         if (ctx.forInStmt()  != null) return visitForInStmt(ctx.forInStmt());
+        if (ctx.matchStmt()  != null) return visitMatchStmt(ctx.matchStmt());
         return visitExprStmt(ctx.exprStmt());
     }
 
@@ -83,6 +89,58 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
                 .map(this::visitStatement).collect(Collectors.toList());
         return new ForIn(varName, iterable, body, SourceLocation.fromContext(ctx));
     }
+
+    // ── Match Statement ─────────────────────────────────────────────────────
+
+    public MatchStmt visitMatchStmt(PuzzLangParser.MatchStmtContext ctx) {
+        Expr subject = visitExprCtx(ctx.expr());
+        List<MatchArm> arms = ctx.matchArm().stream()
+                .map(this::visitMatchArm)
+                .collect(Collectors.toList());
+        return new MatchStmt(subject, arms, SourceLocation.fromContext(ctx));
+    }
+
+    public MatchArm visitMatchArm(PuzzLangParser.MatchArmContext ctx) {
+        MatchPattern pattern = visitMatchPattern(ctx.matchPattern());
+        Stmt body = visitStatement(ctx.statement());
+        return new MatchArm(pattern, body, SourceLocation.fromContext(ctx));
+    }
+
+    public MatchPattern visitMatchPattern(PuzzLangParser.MatchPatternContext ctx) {
+        SourceLocation loc = SourceLocation.fromContext(ctx);
+
+        if (ctx instanceof PuzzLangParser.PatternStringContext c) {
+            String raw = c.STRING().getText();
+            // Remove surrounding quotes
+            String template = raw.substring(1, raw.length() - 1);
+            // Process escape sequences
+            template = unescapeString(template);
+            // Extract capture names
+            List<String> captureNames = extractCaptureNames(template);
+            return new StringPattern(template, captureNames, loc);
+        }
+
+        if (ctx instanceof PuzzLangParser.PatternWildcardContext) {
+            return new WildcardPattern(loc);
+        }
+
+        throw new RuntimeException("Unknown pattern type: " + ctx.getClass().getSimpleName());
+    }
+
+    /**
+     * Extract capture variable names from a pattern template.
+     * "move {n} from {a} to {b}" → ["n", "a", "b"]
+     */
+    private List<String> extractCaptureNames(String template) {
+        List<String> names = new ArrayList<>();
+        Matcher matcher = CAPTURE_PATTERN.matcher(template);
+        while (matcher.find()) {
+            names.add(matcher.group(1));
+        }
+        return names;
+    }
+
+    // ── Expression Statement ────────────────────────────────────────────────
 
     @Override
     public ExprStmt visitExprStmt(PuzzLangParser.ExprStmtContext ctx) {

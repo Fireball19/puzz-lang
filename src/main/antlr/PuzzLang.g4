@@ -19,6 +19,7 @@ statement
     | ifStmt
     | whileStmt
     | forInStmt
+    | matchStmt
     | exprStmt
     ;
 
@@ -40,6 +41,23 @@ whileStmt
 forInStmt
     : 'for' ID 'in' expr ':' NEWLINE
       INDENT NEWLINE? statement+ DEDENT NEWLINE?
+    ;
+
+// match expr:
+//     "pattern {x}" -> statement
+//     _ -> statement
+matchStmt
+    : 'match' expr ':' NEWLINE
+      INDENT NEWLINE? matchArm+ DEDENT NEWLINE?
+    ;
+
+matchArm
+    : matchPattern '->' statement
+    ;
+
+matchPattern
+    : STRING                    # PatternString   // "move {n} from {a} to {b}"
+    | '_'                       # PatternWildcard // default/catch-all
     ;
 
 exprStmt : expr NEWLINE ;

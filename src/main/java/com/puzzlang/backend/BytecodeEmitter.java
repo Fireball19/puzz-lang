@@ -19,11 +19,14 @@ import static org.objectweb.asm.Opcodes.*;
  *   - Method calls: INVOKESTATIC PuzzRuntime.callMethod
  *   - For-in loops: get iterator, loop with hasNext/next
  *   - I/O calls: INVOKESTATIC PuzzIO.stdin/readFile
+ *   - Match statements: pattern matching with captures
  */
 public class BytecodeEmitter {
 
     private static final String RUNTIME = "com/puzzlang/runtime/PuzzRuntime";
     private static final String IO      = "com/puzzlang/runtime/PuzzIO";
+    private static final String MATCH   = "com/puzzlang/runtime/PuzzMatch";
+    private static final String MATCH_RESULT = "com/puzzlang/runtime/PuzzMatch$MatchResult";
 
     private final String className;
     private ClassWriter  cw;
@@ -62,6 +65,7 @@ public class BytecodeEmitter {
             case IfStmt is    -> emitIf(is);
             case WhileStmt ws -> emitWhile(ws);
             case ForIn fi     -> emitForIn(fi);
+            case MatchStmt ms -> emitMatch(ms);
             case ExprStmt es  -> { emitExpr(es.expr()); mv.visitInsn(POP); }
             case Program p    -> p.stmts().forEach(this::emitStmt);
         }
@@ -157,6 +161,106 @@ public class BytecodeEmitter {
         mv.visitLabel(loopEnd);
     }
 
+    /**
+     * match SUBJECT:
+     *     "pattern {x}" -> stmt
+     *     _ -> stmt
+     *
+     * Compiles to:
+     *   subject_str = PuzzRuntime.toString(SUBJECT)
+     *   result = PuzzMatch.tryMatch(subject_str, pattern1, captureNames1)
+     *   if (result.matched()):
+     *       x = result.captures().get("x")
+     *       stmt1
+     *       goto END
+     *   result = PuzzMatch.tryMatch(subject_str, pattern2, captureNames2)
+     *   if (result.matched()):
+     *       ...
+     *   // wildcard arm (if present) has no condition
+     *   stmt_default
+     *   END:
+     */
+    private void emitMatch(MatchStmt ms) {
+        Label endLabel = new Label();
+
+        // Evaluate subject once, convert to string, store in temp slot
+        emitExpr(ms.subject());
+        mv.visitMethodInsn(INVOKESTATIC, RUNTIME, "toString",
+                "(Ljava/lang/Object;)Ljava/lang/String;", false);
+        int subjectSlot = nextSlot++;
+        mv.visitVarInsn(ASTORE, subjectSlot);
+
+        for (MatchArm arm : ms.arms()) {
+            Label nextArmLabel = new Label();
+
+            if (arm.pattern() instanceof WildcardPattern) {
+                // Wildcard always matches, just emit body
+                emitStmt(arm.body());
+                mv.visitJumpInsn(GOTO, endLabel);
+            } else if (arm.pattern() instanceof StringPattern sp) {
+                // Call PuzzMatch.tryMatch(subject, template, captureNames)
+                mv.visitVarInsn(ALOAD, subjectSlot);
+                mv.visitLdcInsn(sp.template());
+
+                // Build List<String> of capture names
+                emitCaptureNamesList(sp.captureNames());
+
+                mv.visitMethodInsn(INVOKESTATIC, MATCH, "tryMatch",
+                        "(Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)" +
+                        "L" + MATCH_RESULT + ";", false);
+
+                // Store result in temp slot
+                int resultSlot = nextSlot++;
+                mv.visitVarInsn(ASTORE, resultSlot);
+
+                // Check if matched
+                mv.visitVarInsn(ALOAD, resultSlot);
+                mv.visitMethodInsn(INVOKEVIRTUAL, MATCH_RESULT, "matched", "()Z", false);
+                mv.visitJumpInsn(IFEQ, nextArmLabel);
+
+                // Extract captures into local variables
+                for (String captureName : sp.captureNames()) {
+                    mv.visitVarInsn(ALOAD, resultSlot);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, MATCH_RESULT, "captures",
+                            "()Ljava/util/Map;", false);
+                    mv.visitLdcInsn(captureName);
+                    mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get",
+                            "(Ljava/lang/Object;)Ljava/lang/Object;", true);
+                    mv.visitVarInsn(ASTORE, getOrCreateSlot(captureName));
+                }
+
+                // Emit body
+                emitStmt(arm.body());
+                mv.visitJumpInsn(GOTO, endLabel);
+            }
+
+            mv.visitLabel(nextArmLabel);
+        }
+
+        mv.visitLabel(endLabel);
+    }
+
+    /**
+     * Emits code to create a List<String> containing the capture names.
+     * Uses Arrays.asList() for efficiency.
+     */
+    private void emitCaptureNamesList(List<String> captureNames) {
+        // Create String[] array
+        mv.visitLdcInsn(captureNames.size());
+        mv.visitTypeInsn(ANEWARRAY, "java/lang/String");
+
+        for (int i = 0; i < captureNames.size(); i++) {
+            mv.visitInsn(DUP);
+            mv.visitLdcInsn(i);
+            mv.visitLdcInsn(captureNames.get(i));
+            mv.visitInsn(AASTORE);
+        }
+
+        // Call Arrays.asList(array)
+        mv.visitMethodInsn(INVOKESTATIC, "java/util/Arrays", "asList",
+                "([Ljava/lang/Object;)Ljava/util/List;", false);
+    }
+
     // ── Expressions ──────────────────────────────────────────────────────────
 
     private void emitExpr(Expr expr) {
@@ -234,7 +338,8 @@ public class BytecodeEmitter {
         }
 
         mv.visitMethodInsn(INVOKESTATIC, RUNTIME, "callMethod",
-                "(Ljava/lang/Object;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;",
+                "(Ljava/lang/Object;Ljava/lang/String;[Ljava/lang/Object;)" +
+                "Ljava/lang/Object;",
                 false);
     }
 

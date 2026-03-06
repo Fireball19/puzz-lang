@@ -9,14 +9,15 @@ import java.util.List;
  * All nodes now carry SourceLocation for precise error reporting.
  *
  * Node types:
- *   Statements: Program, VarDecl, PrintStmt, IfStmt, WhileStmt, ForIn, ExprStmt
+ *   Statements: Program, VarDecl, PrintStmt, IfStmt, WhileStmt, ForIn, MatchStmt, ExprStmt
  *   Expressions: IntLit, StringLit, BoolLit, VarRef, BinOp, RangeLit, RangeInclusive, MethodCall, StdinCall, ReadCall
+ *   Patterns: StringPattern, WildcardPattern
  */
 public class Nodes {
 
     // ── Statements ──────────────────────────────────────────────────────────
 
-    public sealed interface Stmt permits Program, VarDecl, PrintStmt, IfStmt, WhileStmt, ForIn, ExprStmt {
+    public sealed interface Stmt permits Program, VarDecl, PrintStmt, IfStmt, WhileStmt, ForIn, MatchStmt, ExprStmt {
         SourceLocation location();
     }
 
@@ -62,9 +63,59 @@ public class Nodes {
         }
     }
 
+    /**
+     * match expr:
+     *     "pattern {x}" -> stmt
+     *     _ -> stmt
+     *
+     * Pattern matching with destructuring for string parsing.
+     */
+    public record MatchStmt(Expr subject, List<MatchArm> arms, SourceLocation location) implements Stmt {
+        public MatchStmt(Expr subject, List<MatchArm> arms) {
+            this(subject, arms, SourceLocation.UNKNOWN);
+        }
+    }
+
     public record ExprStmt(Expr expr, SourceLocation location) implements Stmt {
         public ExprStmt(Expr expr) {
             this(expr, expr.location());
+        }
+    }
+
+    // ── Match Arms and Patterns ─────────────────────────────────────────────
+
+    /**
+     * A single arm in a match statement: pattern -> body
+     */
+    public record MatchArm(MatchPattern pattern, Stmt body, SourceLocation location) {
+        public MatchArm(MatchPattern pattern, Stmt body) {
+            this(pattern, body, pattern.location());
+        }
+    }
+
+    /**
+     * Patterns used in match arms.
+     */
+    public sealed interface MatchPattern permits StringPattern, WildcardPattern {
+        SourceLocation location();
+    }
+
+    /**
+     * String pattern with captures: "move {n} from {a} to {b}"
+     * The template is the raw string, captureNames are extracted placeholder names.
+     */
+    public record StringPattern(String template, List<String> captureNames, SourceLocation location) implements MatchPattern {
+        public StringPattern(String template, List<String> captureNames) {
+            this(template, captureNames, SourceLocation.UNKNOWN);
+        }
+    }
+
+    /**
+     * Wildcard pattern: _ (matches anything, no captures)
+     */
+    public record WildcardPattern(SourceLocation location) implements MatchPattern {
+        public WildcardPattern() {
+            this(SourceLocation.UNKNOWN);
         }
     }
 

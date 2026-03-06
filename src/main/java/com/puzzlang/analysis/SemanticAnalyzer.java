@@ -112,6 +112,34 @@ public class SemanticAnalyzer {
                 popScope();
             }
 
+            case MatchStmt ms -> {
+                // Analyze the subject expression
+                analyzeExpr(ms.subject());
+
+                for (MatchArm arm : ms.arms()) {
+                    pushScope("match-arm");
+
+                    // Define captured variables in this arm's scope
+                    if (arm.pattern() instanceof StringPattern sp) {
+                        for (String capture : sp.captureNames()) {
+                            // Check if we're shadowing an outer variable
+                            if (isDefinedInOuterScope(capture)) {
+                                diagnostics.warning(arm.location(), W_SHADOWED_VAR,
+                                        "Capture '%s' shadows outer variable", capture);
+                            }
+                            define(capture, arm.location());
+                            // Mark as used since pattern matching uses it implicitly
+                            currentScope().markUsed(capture);
+                        }
+                    }
+                    // WildcardPattern has no captures
+
+                    analyzeStmt(arm.body());
+                    checkUnusedVariables();
+                    popScope();
+                }
+            }
+
             case ExprStmt es -> analyzeExpr(es.expr());
         }
     }
@@ -138,14 +166,14 @@ public class SemanticAnalyzer {
                 analyzeExpr(op.right());
             }
 
-            case RangeLit r -> {
-                analyzeExpr(r.start());
-                analyzeExpr(r.end());
+            case RangeLit rl -> {
+                analyzeExpr(rl.start());
+                analyzeExpr(rl.end());
             }
 
-            case RangeInclusive r -> {
-                analyzeExpr(r.start());
-                analyzeExpr(r.end());
+            case RangeInclusive ri -> {
+                analyzeExpr(ri.start());
+                analyzeExpr(ri.end());
             }
 
             case MethodCall mc -> {
@@ -155,14 +183,9 @@ public class SemanticAnalyzer {
                 }
             }
 
-            // I/O built-ins
-            case StdinCall sc -> {
-                // No variables to analyze
-            }
+            case StdinCall ignored -> {}
 
-            case ReadCall rc -> {
-                analyzeExpr(rc.path());
-            }
+            case ReadCall rc -> analyzeExpr(rc.path());
         }
     }
 
@@ -192,10 +215,10 @@ public class SemanticAnalyzer {
     }
 
     private boolean isDefinedInOuterScope(String name) {
-        var iter = scopes.iterator();
-        if (iter.hasNext()) iter.next(); // Skip current scope
-        while (iter.hasNext()) {
-            if (iter.next().isDefined(name)) return true;
+        boolean first = true;
+        for (Scope scope : scopes) {
+            if (first) { first = false; continue; }
+            if (scope.isDefined(name)) return true;
         }
         return false;
     }
