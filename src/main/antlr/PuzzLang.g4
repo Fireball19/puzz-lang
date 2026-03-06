@@ -63,13 +63,15 @@ expr
 //  Lexer Rules
 // ─────────────────────────────────────────
 
+// Keywords and special tokens MUST come before ID
+INDENT  : 'INDENT' ;
+DEDENT  : 'DEDENT' ;
 BOOL    : 'true' | 'false' ;
+
 INT     : [0-9]+ ;
 STRING  : '"' (~["\r\n])* '"' ;
 ID      : [a-zA-Z_][a-zA-Z0-9_]* ;
 
-INDENT  : 'INDENT' ;
-DEDENT  : 'DEDENT' ;
 NEWLINE : [\r\n]+ ;
 
 WS      : [ \t]+    -> skip ;

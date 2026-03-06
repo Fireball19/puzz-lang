@@ -125,6 +125,89 @@ class RangeTest {
         assertEquals("10", run(src));
     }
 
+    // ── Additional for-in tests ──────────────────────────────────────────────
+
+    @Test void forInWithExistingVar() throws Exception {
+        // Variable declared before loop, updated inside
+        String src =
+                "let total = 0\n" +
+                        "for i in 1..=5:\n" +
+                        "    let total = total + i\n" +
+                        "print total\n";
+        assertEquals("15", run(src));
+    }
+
+    @Test void forInNested() throws Exception {
+        // Nested for-in loops
+        String src =
+                "let sum = 0\n" +
+                        "for i in 1..=2:\n" +
+                        "    for j in 1..=3:\n" +
+                        "        let sum = sum + i * j\n" +
+                        "print sum\n";
+        // i=1: j=1,2,3 -> 1+2+3=6
+        // i=2: j=1,2,3 -> 2+4+6=12
+        // total = 18
+        assertEquals("18", run(src));
+    }
+
+    @Test void forInMultipleVars() throws Exception {
+        // Multiple variables, one updated in loop
+        String src =
+                "let a = 10\n" +
+                        "let b = 0\n" +
+                        "for x in 1..4:\n" +
+                        "    let b = b + x\n" +
+                        "print a\n" +
+                        "print b\n";
+        assertEquals("10\n6", run(src));
+    }
+
+    @Test void forInLoopVarShadow() throws Exception {
+        // Loop variable shadows outer variable
+        String src =
+                "let x = 100\n" +
+                        "let sum = 0\n" +
+                        "for x in 1..=3:\n" +
+                        "    let sum = sum + x\n" +
+                        "print sum\n" +
+                        "print x\n";
+        // sum = 1+2+3 = 6
+        // x after loop is 3 (last iteration value) since we reuse the slot
+        assertEquals("6\n3", run(src));
+    }
+
+    @Test void forInSimplePrint() throws Exception {
+        // Just print, no variable updates
+        assertEquals("1\n2\n3", run("for n in 1..=3:\n    print n\n"));
+    }
+
+    @Test void forInWithMethodCall() throws Exception {
+        // Use method call result in loop
+        String src =
+                "let r = 1..=3\n" +
+                        "let s = 0\n" +
+                        "for v in r:\n" +
+                        "    let s = s + v\n" +
+                        "print s\n" +
+                        "print r.sum()\n";
+        assertEquals("6\n6", run(src));
+    }
+
+    @Test void consecutiveForLoops() throws Exception {
+        // Two separate for loops
+        String src =
+                "let a = 0\n" +
+                        "for i in 1..=3:\n" +
+                        "    let a = a + i\n" +
+                        "let b = 0\n" +
+                        "for j in 1..=4:\n" +
+                        "    let b = b + j\n" +
+                        "print a\n" +
+                        "print b\n";
+        assertEquals("6\n10", run(src));
+    }
+
     // ── variables holding ranges ──────────────────────────────────────────────
 
     @Test void rangeInVariable() throws Exception {
