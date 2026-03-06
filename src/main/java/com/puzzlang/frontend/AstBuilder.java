@@ -98,7 +98,9 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
 
         if (ctx instanceof PuzzLangParser.StringLitContext c) {
             String raw = c.STRING().getText();
-            return new StringLit(raw.substring(1, raw.length() - 1), loc);
+            String content = raw.substring(1, raw.length() - 1);
+            String unescaped = unescapeString(content);
+            return new StringLit(unescaped, loc);
         }
 
         if (ctx instanceof PuzzLangParser.BoolLitContext c)
@@ -161,6 +163,13 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
             return new MethodCall(receiver, method, args, loc);
         }
 
+        // ── I/O built-ins ──────────────────────────────────────────────────
+        if (ctx instanceof PuzzLangParser.StdinCallContext)
+            return new StdinCall(loc);
+
+        if (ctx instanceof PuzzLangParser.ReadCallContext c)
+            return new ReadCall(visitExprCtx(c.expr()), loc);
+
         throw new RuntimeException("Unknown expr: " + ctx.getClass().getSimpleName());
     }
 
@@ -180,5 +189,30 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
             else if ("else".equals(child.getText())) return stmtCount;
         }
         return -1;
+    }
+
+    /**
+     * Process escape sequences in string literals.
+     * Converts \n, \t, \r, \\, \" to their actual characters.
+     */
+    private String unescapeString(String s) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                switch (next) {
+                    case 'n' -> { sb.append('\n'); i++; }
+                    case 't' -> { sb.append('\t'); i++; }
+                    case 'r' -> { sb.append('\r'); i++; }
+                    case '\\' -> { sb.append('\\'); i++; }
+                    case '"' -> { sb.append('"'); i++; }
+                    default -> sb.append(c);
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 }

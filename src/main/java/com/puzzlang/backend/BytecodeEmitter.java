@@ -13,15 +13,17 @@ import static org.objectweb.asm.Opcodes.*;
  * BytecodeEmitter — AST → JVM bytecode via ASM.
  *
  * All values are Object (dynamic typing).
- * 
+ *
  * Emits:
  *   - Range construction: INVOKESTATIC PuzzRuntime.makeRange/makeRangeInclusive
  *   - Method calls: INVOKESTATIC PuzzRuntime.callMethod
  *   - For-in loops: get iterator, loop with hasNext/next
+ *   - I/O calls: INVOKESTATIC PuzzIO.stdin/readFile
  */
 public class BytecodeEmitter {
 
     private static final String RUNTIME = "com/puzzlang/runtime/PuzzRuntime";
+    private static final String IO      = "com/puzzlang/runtime/PuzzIO";
 
     private final String className;
     private ClassWriter  cw;
@@ -195,6 +197,17 @@ public class BytecodeEmitter {
 
             // ── Method calls: receiver.method(arg0, arg1, ...) ───────────
             case MethodCall mc -> emitMethodCall(mc);
+
+            // ── I/O built-ins ─────────────────────────────────────────────
+            case StdinCall sc -> {
+                mv.visitMethodInsn(INVOKESTATIC, IO, "stdin",
+                        "()Ljava/lang/Object;", false);
+            }
+            case ReadCall rc -> {
+                emitExpr(rc.path());
+                mv.visitMethodInsn(INVOKESTATIC, IO, "readFile",
+                        "(Ljava/lang/Object;)Ljava/lang/Object;", false);
+            }
         }
     }
 

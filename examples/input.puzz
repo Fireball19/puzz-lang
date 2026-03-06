@@ -1,0 +1,86 @@
+# PuzzLang — Input Handling Examples
+# Run: ./gradlew run --args="examples/input.puzz"
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Reading files
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Read a file as a string
+let data = read("examples/sample_input.txt")
+print "Raw data length: " + data.length()
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  .lines() — Split into lines
+# ══════════════════════════════════════════════════════════════════════════════
+
+let lines = data.lines()
+print "Number of lines: " + lines.count()
+print "First line: " + lines.first()
+print "Last line: " + lines.last()
+
+# Iterate over lines
+print "All lines:"
+for line in data.lines():
+    print "  > " + line
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  .paragraphs() — Split by blank lines (common AoC pattern)
+# ══════════════════════════════════════════════════════════════════════════════
+
+let grouped = read("examples/grouped_input.txt")
+let groups = grouped.paragraphs()
+print "Number of groups: " + groups.count()
+
+for g in groups:
+    print "Group: " + g
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  .split() — Split by delimiter
+# ══════════════════════════════════════════════════════════════════════════════
+
+let csv = "apple,banana,cherry,date"
+let fruits = csv.split(",")
+print "Fruits: " + fruits.join(" | ")
+print "Second fruit: " + fruits.get(1)
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  .words() — Split by whitespace
+# ══════════════════════════════════════════════════════════════════════════════
+
+let sentence = "The   quick    brown fox"
+let words = sentence.words()
+print "Word count: " + words.count()
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  .chars() — Split into characters
+# ══════════════════════════════════════════════════════════════════════════════
+
+let chars = "ABC".chars()
+for c in chars:
+    print "Char: " + c
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  String methods
+# ══════════════════════════════════════════════════════════════════════════════
+
+print "  hello  ".trim()
+print "hello".upper()
+print "WORLD".lower()
+print "hello world".startsWith("hello")
+print "hello world".endsWith("world")
+print "hello world".contains("lo wo")
+print "hello world".replace("world", "puzz")
+
+# Parse string as integer
+let num = "42".toInt()
+print "42 + 8 = " + (num + 8)
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  AoC-style: Sum numbers from lines
+# ══════════════════════════════════════════════════════════════════════════════
+
+let numbers = "10\n20\n30\n40\n50"
+let total = 0
+for line in numbers.lines():
+    let total = total + line.toInt()
+print "Sum: " + total

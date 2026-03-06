@@ -10,7 +10,7 @@ import java.util.List;
  *
  * Node types:
  *   Statements: Program, VarDecl, PrintStmt, IfStmt, WhileStmt, ForIn, ExprStmt
- *   Expressions: IntLit, StringLit, BoolLit, VarRef, BinOp, RangeLit, RangeInclusive, MethodCall
+ *   Expressions: IntLit, StringLit, BoolLit, VarRef, BinOp, RangeLit, RangeInclusive, MethodCall, StdinCall, ReadCall
  */
 public class Nodes {
 
@@ -25,25 +25,25 @@ public class Nodes {
             this(stmts, stmts.isEmpty() ? SourceLocation.UNKNOWN : stmts.get(0).location());
         }
     }
-    
+
     public record VarDecl(String name, Expr value, SourceLocation location) implements Stmt {
         public VarDecl(String name, Expr value) {
             this(name, value, SourceLocation.UNKNOWN);
         }
     }
-    
+
     public record PrintStmt(Expr value, SourceLocation location) implements Stmt {
         public PrintStmt(Expr value) {
             this(value, SourceLocation.UNKNOWN);
         }
     }
-    
+
     public record IfStmt(Expr condition, List<Stmt> body, List<Stmt> elseBody, SourceLocation location) implements Stmt {
         public IfStmt(Expr condition, List<Stmt> body, List<Stmt> elseBody) {
             this(condition, body, elseBody, SourceLocation.UNKNOWN);
         }
     }
-    
+
     public record WhileStmt(Expr condition, List<Stmt> body, SourceLocation location) implements Stmt {
         public WhileStmt(Expr condition, List<Stmt> body) {
             this(condition, body, SourceLocation.UNKNOWN);
@@ -54,7 +54,7 @@ public class Nodes {
      * for x in expr:
      *     body
      *
-     * At runtime 'expr' must evaluate to an iterable (ranges, later lists).
+     * At runtime 'expr' must evaluate to an iterable (ranges, lists).
      */
     public record ForIn(String var, Expr iterable, List<Stmt> body, SourceLocation location) implements Stmt {
         public ForIn(String var, Expr iterable, List<Stmt> body) {
@@ -71,7 +71,7 @@ public class Nodes {
     // ── Expressions ─────────────────────────────────────────────────────────
 
     public sealed interface Expr permits IntLit, StringLit, BoolLit, VarRef, BinOp,
-            RangeLit, RangeInclusive, MethodCall {
+            RangeLit, RangeInclusive, MethodCall, StdinCall, ReadCall {
         SourceLocation location();
     }
 
@@ -80,25 +80,25 @@ public class Nodes {
             this(value, SourceLocation.UNKNOWN);
         }
     }
-    
+
     public record StringLit(String value, SourceLocation location) implements Expr {
         public StringLit(String value) {
             this(value, SourceLocation.UNKNOWN);
         }
     }
-    
+
     public record BoolLit(boolean value, SourceLocation location) implements Expr {
         public BoolLit(boolean value) {
             this(value, SourceLocation.UNKNOWN);
         }
     }
-    
+
     public record VarRef(String name, SourceLocation location) implements Expr {
         public VarRef(String name) {
             this(name, SourceLocation.UNKNOWN);
         }
     }
-    
+
     public record BinOp(Expr left, String op, Expr right, SourceLocation location) implements Expr {
         public BinOp(Expr left, String op, Expr right) {
             this(left, op, right, left.location());
@@ -131,10 +131,31 @@ public class Nodes {
      *   (1..10).sum()
      *   (1..100).contains(42)
      *   myRange.overlaps(other)
+     *   "hello\nworld".lines()
      */
     public record MethodCall(Expr receiver, String method, List<Expr> args, SourceLocation location) implements Expr {
         public MethodCall(Expr receiver, String method, List<Expr> args) {
             this(receiver, method, args, receiver.location());
+        }
+    }
+
+    /**
+     * stdin() — read all of standard input as a string.
+     * Used for AoC-style input handling.
+     */
+    public record StdinCall(SourceLocation location) implements Expr {
+        public StdinCall() {
+            this(SourceLocation.UNKNOWN);
+        }
+    }
+
+    /**
+     * read(path) — read file contents as a string.
+     * Example: read("input.txt")
+     */
+    public record ReadCall(Expr path, SourceLocation location) implements Expr {
+        public ReadCall(Expr path) {
+            this(path, path.location());
         }
     }
 }

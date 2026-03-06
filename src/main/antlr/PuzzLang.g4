@@ -36,7 +36,7 @@ whileStmt
       INDENT NEWLINE? statement+ DEDENT NEWLINE?
     ;
 
-// for x in range: — iterates over any iterable (ranges, later lists)
+// for x in range: — iterates over any iterable (ranges, lists)
 forInStmt
     : 'for' ID 'in' expr ':' NEWLINE
       INDENT NEWLINE? statement+ DEDENT NEWLINE?
@@ -45,14 +45,16 @@ forInStmt
 exprStmt : expr NEWLINE ;
 
 expr
-    : expr op=('*' | '/')            expr   # MulDiv
+    : expr '.' method=ID
+        '(' (expr (',' expr)*)? ')'          # MethodCall     // r.sum() - highest precedence
+    | expr op=('*' | '/')            expr   # MulDiv
     | expr op=('+' | '-')            expr   # AddSub
     | expr op=('==' | '!=' | '<' | '<=' | '>' | '>=') expr  # Compare
     | expr '..' expr                         # RangeLit       // 1..10
     | expr '..=' expr                        # RangeInclusive // 1..=10
-    | expr '.' method=ID
-        '(' (expr (',' expr)*)? ')'          # MethodCall     // r.sum()
     | '(' expr ')'                           # Parens
+    | 'stdin' '(' ')'                        # StdinCall      // stdin()
+    | 'read' '(' expr ')'                    # ReadCall       // read("file.txt")
     | INT                                    # IntLit
     | STRING                                 # StringLit
     | BOOL                                   # BoolLit
