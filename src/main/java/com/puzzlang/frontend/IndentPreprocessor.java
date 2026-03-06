@@ -1,4 +1,4 @@
-package com.puzzlang.compiler;
+package com.puzzlang.frontend;
 
 import java.util.ArrayDeque;
 import java.util.Deque;

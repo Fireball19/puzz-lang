@@ -27,19 +27,19 @@ printStmt  : 'print' expr NEWLINE ;
 
 ifStmt
     : 'if' expr ':' NEWLINE
-      INDENT statement+ DEDENT
-      ('else' ':' NEWLINE INDENT statement+ DEDENT)?
+      INDENT NEWLINE? statement+ DEDENT NEWLINE?
+      ('else' ':' NEWLINE INDENT NEWLINE? statement+ DEDENT NEWLINE?)?
     ;
 
 whileStmt
     : 'while' expr ':' NEWLINE
-      INDENT statement+ DEDENT
+      INDENT NEWLINE? statement+ DEDENT NEWLINE?
     ;
 
 // for x in range: — iterates over any iterable (ranges, later lists)
 forInStmt
     : 'for' ID 'in' expr ':' NEWLINE
-      INDENT statement+ DEDENT
+      INDENT NEWLINE? statement+ DEDENT NEWLINE?
     ;
 
 exprStmt : expr NEWLINE ;

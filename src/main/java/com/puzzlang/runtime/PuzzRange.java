@@ -4,7 +4,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
- * AocRange — a first-class range/interval value.
+ * PuzzRange — a first-class range/interval value.
  *
  * Represents an integer range [start, end) or [start, end].
  * Ranges are lazy — they do not allocate an array of elements.
@@ -31,7 +31,7 @@ import java.util.NoSuchElementException;
  *     (1..5).overlaps(5..8)      → false  (exclusive: 5 not in 1..5)
  *
  *   Conversion:
- *     (1..5).toList()            → AocList [1,2,3,4]  (future)
+ *     (1..5).toList()            → List [1,2,3,4]
  *
  *   Inspection:
  *     r.start()                  → start value
@@ -69,7 +69,7 @@ public class PuzzRange implements Iterable<Integer> {
     /** Total number of elements in the range (0 if empty). */
     public int count() { return Math.max(0, lastValue() - start + 1); }
 
-    public boolean inclusive() { return inclusive; }  // ← add this
+    public boolean inclusive() { return inclusive; }
 
     public boolean isEmpty() { return count() == 0; }
 
@@ -120,23 +120,24 @@ public class PuzzRange implements Iterable<Integer> {
     }
 
     public int min() {
-        if (isEmpty()) throw new RuntimeException("PuzzLang: min() on empty range");
+        if (isEmpty()) throw PuzzLangException.emptyRange("min()");
         return start;  // ranges are always ascending (for now)
     }
 
     public int max() {
-        if (isEmpty()) throw new RuntimeException("PuzzLang: max() on empty range");
+        if (isEmpty()) throw PuzzLangException.emptyRange("max()");
         return lastValue();
     }
 
     // ── Step ─────────────────────────────────────────────────────────────────
 
     /**
-     * Returns a new AocSteppedRange (represented as AocRange with step info).
-     * For simplicity we implement step by returning an Iterable wrapper.
+     * Returns a SteppedRange for iteration with custom step size.
      */
     public SteppedRange step(int stepSize) {
-        if (stepSize <= 0) throw new RuntimeException("PuzzLang: step must be > 0");
+        if (stepSize <= 0) {
+            throw new PuzzLangException("step must be > 0, got %d", stepSize);
+        }
         return new SteppedRange(start, lastValue(), stepSize);
     }
 
@@ -187,7 +188,7 @@ public class PuzzRange implements Iterable<Integer> {
     public static class SteppedRange implements Iterable<Integer> {
         private final int start, end, step;
 
-        SteppedRange(int start, int end, int step) {
+        public SteppedRange(int start, int end, int step) {
             this.start = start;
             this.end   = end;
             this.step  = step;
@@ -210,6 +211,7 @@ public class PuzzRange implements Iterable<Integer> {
                 int current = start;
                 @Override public boolean hasNext() { return current <= end; }
                 @Override public Integer next() {
+                    if (!hasNext()) throw new NoSuchElementException();
                     int v = current;
                     current += step;
                     return v;
