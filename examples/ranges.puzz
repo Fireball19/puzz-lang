@@ -1,0 +1,42 @@
+# PuzzLang — Range examples
+# Run: ./gradlew run --args="examples/ranges.puzz"
+
+# Basic exclusive range: 1..10 = {1,2,3,4,5,6,7,8,9}
+let r = 1..10
+print "range:   " + r
+print "count:   " + r.count()
+print "sum:     " + r.sum()
+print "min:     " + r.min()
+print "max:     " + r.max()
+
+# Inclusive range: 1..=10 = {1,2,...,10}
+let ri = 1..=10
+print "incl sum: " + ri.sum()
+
+# Gauss formula (1..=100)
+print "Gauss: " + (1..=100).sum()
+
+# Membership
+print (1..10).contains(5)
+print (1..10).contains(10)
+print (1..=10).contains(10)
+
+# For-in loop
+let total = 0
+for x in 1..=10:
+    let total = total + x
+print "loop sum: " + total
+
+# Overlap detection — classic AoC day puzzle type
+let a = 2..8
+let b = 6..12
+print "overlaps: " + a.overlaps(b)
+
+let c = 1..4
+let d = 5..9
+print "no overlap: " + c.overlaps(d)
+
+# Step (every 2nd element of 0..10)
+let evens = (0..11).step(2)
+print "evens sum: " + evens.sum()
+print "evens count: " + evens.count()
