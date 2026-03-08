@@ -1,6 +1,17 @@
 # PuzzLang
 
+<div align="left">
+  
+  [![License badge](https://img.shields.io/github/license/Fireball19/puzz-lang)](https://github.com/Fireball19/puzz-lang/blob/main/LICENSE)
+  [![GitHub release badge](https://badgen.net/github/release/Fireball19/puzz-lang/stable)](https://github.com/Fireball19/puzz-lang/releases/latest)
+  
+</div>
+
+<img align="left" width="128" height="128" src="./intellij-plugin/src/main/resources/icons/puzz-file.svg"/>
+
 A domain-specific language for solving coding puzzles and challenges like Advent of Code.
+
+<br clear="left"/>
 
 ## Quick Example
 
