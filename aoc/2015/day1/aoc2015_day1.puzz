@@ -1,5 +1,5 @@
 # Advent of Code 2015 - Day 1: Not Quite Lisp
-# Run: ./gradlew run --args="examples/aoc2015_day1.puzz"
+# Run: ./gradlew run --args="aoc/2015/day1/aoc2015_day1.puzz"
 
 let input = read("aoc/2015/day1/aoc2015_day1_input.txt")
 
