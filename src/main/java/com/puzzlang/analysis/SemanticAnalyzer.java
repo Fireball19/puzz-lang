@@ -10,16 +10,13 @@ import java.util.*;
 /**
  * SemanticAnalyzer — performs semantic analysis on the AST.
  *
- * Currently checks:
+ * Checks:
  *   - Variable definitions before use
  *   - Unused variable warnings
  *   - Variable shadowing warnings
  *   - Unknown function warnings
- *
- * Could be extended to check:
- *   - Type compatibility (when types are added)
- *   - Function arity
- *   - Unreachable code
+ *   - Destructuring targets (tuple/list sizes)
+ *   - List comprehension variable scoping
  */
 public class SemanticAnalyzer {
 
@@ -53,25 +50,22 @@ public class SemanticAnalyzer {
     private void analyzeStmt(Stmt stmt) {
         switch (stmt) {
             case VarDecl vd -> {
+                // First analyze the value expression
                 analyzeExpr(vd.value());
-                // Check if we're shadowing an outer variable
-                if (isDefinedInOuterScope(vd.name())) {
-                    diagnostics.warning(vd.location(), W_SHADOWED_VAR,
-                            "Variable '%s' shadows outer variable", vd.name());
-                }
-                define(vd.name(), vd.location());
+                
+                // Then define the target variable(s)
+                defineTarget(vd.target());
             }
 
             case PrintStmt ps -> analyzeExpr(ps.value());
 
             case IfStmt is -> {
                 analyzeExpr(is.condition());
-
                 pushScope("if-then");
                 for (Stmt s : is.body()) analyzeStmt(s);
                 checkUnusedVariables();
                 popScope();
-
+                
                 if (!is.elseBody().isEmpty()) {
                     pushScope("if-else");
                     for (Stmt s : is.elseBody()) analyzeStmt(s);
@@ -82,7 +76,6 @@ public class SemanticAnalyzer {
 
             case WhileStmt ws -> {
                 analyzeExpr(ws.condition());
-
                 pushScope("while");
                 for (Stmt s : ws.body()) analyzeStmt(s);
                 checkUnusedVariables();
@@ -90,14 +83,12 @@ public class SemanticAnalyzer {
             }
 
             case ForIn fi -> {
-                // Analyze iterable before creating loop scope
                 analyzeExpr(fi.iterable());
-
                 pushScope("for-in");
-                // Loop variable is defined in loop scope
-                define(fi.var(), fi.location());
-                // Mark it as used since iteration uses it implicitly
-                currentScope().markUsed(fi.var());
+                
+                // Define the loop variable(s)
+                defineTarget(fi.target());
+                markTargetUsed(fi.target());  // Mark as used since iteration uses it
 
                 for (Stmt s : fi.body()) analyzeStmt(s);
                 checkUnusedVariables();
@@ -105,26 +96,37 @@ public class SemanticAnalyzer {
             }
 
             case MatchStmt ms -> {
-                // Analyze the subject expression
                 analyzeExpr(ms.subject());
 
                 for (MatchArm arm : ms.arms()) {
                     pushScope("match-arm");
 
-                    // Define captured variables in this arm's scope
-                    if (arm.pattern() instanceof StringPattern sp) {
-                        for (String capture : sp.captureNames()) {
-                            // Check if we're shadowing an outer variable
-                            if (isDefinedInOuterScope(capture)) {
-                                diagnostics.warning(arm.location(), W_SHADOWED_VAR,
-                                        "Capture '%s' shadows outer variable", capture);
+                    // Define captured variables based on pattern type
+                    switch (arm.pattern()) {
+                        case StringPattern sp -> {
+                            for (String capture : sp.captureNames()) {
+                                if (isDefinedInOuterScope(capture)) {
+                                    diagnostics.warning(arm.location(), W_SHADOWED_VAR,
+                                            "Capture '%s' shadows outer variable", capture);
+                                }
+                                define(capture, arm.location());
+                                currentScope().markUsed(capture);
                             }
-                            define(capture, arm.location());
-                            // Mark as used since pattern matching uses it implicitly
-                            currentScope().markUsed(capture);
+                        }
+                        case TuplePattern tp -> {
+                            for (String capture : tp.captureNames()) {
+                                if (isDefinedInOuterScope(capture)) {
+                                    diagnostics.warning(arm.location(), W_SHADOWED_VAR,
+                                            "Capture '%s' shadows outer variable", capture);
+                                }
+                                define(capture, arm.location());
+                                currentScope().markUsed(capture);
+                            }
+                        }
+                        case WildcardPattern wp -> {
+                            // No captures
                         }
                     }
-                    // WildcardPattern has no captures
 
                     analyzeStmt(arm.body());
                     checkUnusedVariables();
@@ -146,18 +148,18 @@ public class SemanticAnalyzer {
             case StringLit ignored -> {}
             case BoolLit ignored -> {}
 
-            case VarRef ref -> {
-                if (!isDefined(ref.name())) {
-                    diagnostics.error(ref.location(), E_UNDEFINED_VAR,
-                            "Undefined variable '%s'", ref.name());
+            case VarRef vr -> {
+                if (!isDefined(vr.name())) {
+                    diagnostics.error(vr.location(), E_UNDEFINED_VAR,
+                            "Undefined variable '%s'", vr.name());
                 } else {
-                    markUsed(ref.name());
+                    markUsed(vr.name());
                 }
             }
 
-            case BinOp op -> {
-                analyzeExpr(op.left());
-                analyzeExpr(op.right());
+            case BinOp bo -> {
+                analyzeExpr(bo.left());
+                analyzeExpr(bo.right());
             }
 
             case RangeLit rl -> {
@@ -183,7 +185,6 @@ public class SemanticAnalyzer {
                     diagnostics.warning(fc.location(), W_UNKNOWN_FUNCTION,
                             "Unknown function '%s'", fc.name());
                 }
-                // Analyze all arguments
                 for (Expr arg : fc.args()) {
                     analyzeExpr(arg);
                 }
@@ -192,6 +193,81 @@ public class SemanticAnalyzer {
             case StdinCall ignored -> {}
 
             case ReadCall rc -> analyzeExpr(rc.path());
+
+            case TupleLit tl -> {
+                for (Expr elem : tl.elements()) {
+                    analyzeExpr(elem);
+                }
+            }
+
+            case ListLit ll -> {
+                for (Expr elem : ll.elements()) {
+                    analyzeExpr(elem);
+                }
+            }
+
+            case ListComprehension lc -> {
+                // Analyze iterable in outer scope
+                analyzeExpr(lc.iterable());
+                
+                // Create scope for comprehension
+                pushScope("list-comprehension");
+                
+                // Define target variable(s)
+                defineTarget(lc.target());
+                markTargetUsed(lc.target());
+                
+                // For nested comprehensions
+                if (lc.isNested()) {
+                    analyzeExpr(lc.secondIterable());
+                    defineTarget(lc.secondTarget());
+                    markTargetUsed(lc.secondTarget());
+                }
+                
+                // Analyze condition if present
+                if (lc.hasCondition()) {
+                    analyzeExpr(lc.condition());
+                }
+                
+                // Analyze element expression
+                analyzeExpr(lc.element());
+                
+                checkUnusedVariables();
+                popScope();
+            }
+        }
+    }
+
+    // ── Destructure target helpers ──────────────────────────────────────────
+
+    /**
+     * Define variables from a destructure target.
+     */
+    private void defineTarget(DestructureTarget target) {
+        switch (target) {
+            case SingleTarget st -> {
+                if (isDefinedInOuterScope(st.name())) {
+                    // Allow shadowing in let - common pattern in PuzzLang
+                }
+                define(st.name(), st.location());
+            }
+            case TupleTarget tt -> {
+                for (String name : tt.names()) {
+                    if (isDefinedInOuterScope(name)) {
+                        // Allow shadowing
+                    }
+                    define(name, tt.location());
+                }
+            }
+        }
+    }
+
+    /**
+     * Mark all variables in a target as used.
+     */
+    private void markTargetUsed(DestructureTarget target) {
+        for (String name : target.names()) {
+            currentScope().markUsed(name);
         }
     }
 
@@ -225,7 +301,7 @@ public class SemanticAnalyzer {
         for (Scope scope : scopes) {
             if (first) {
                 first = false;
-                continue; // Skip current scope
+                continue;  // Skip current scope
             }
             if (scope.isDefined(name)) return true;
         }
@@ -243,17 +319,18 @@ public class SemanticAnalyzer {
 
     private void checkUnusedVariables() {
         Scope scope = currentScope();
-        for (String name : scope.getUnused()) {
-            diagnostics.warning(scope.getLocation(name), W_UNUSED_VAR,
-                    "Variable '%s' is never used", name);
+        for (String unused : scope.getUnusedVariables()) {
+            // Don't warn about loop variables or captures
+            diagnostics.warning(scope.getLocation(unused), W_UNUSED_VAR,
+                    "Variable '%s' is defined but never used", unused);
         }
     }
 
-    // ── Inner class: Scope ──────────────────────────────────────────────────
+    // ── Inner: Scope ────────────────────────────────────────────────────────
 
     private static class Scope {
         private final String name;
-        private final Map<String, SourceLocation> definitions = new HashMap<>();
+        private final Map<String, SourceLocation> variables = new HashMap<>();
         private final Set<String> used = new HashSet<>();
 
         Scope(String name) {
@@ -261,11 +338,11 @@ public class SemanticAnalyzer {
         }
 
         void define(String varName, SourceLocation location) {
-            definitions.put(varName, location);
+            variables.put(varName, location);
         }
 
         boolean isDefined(String varName) {
-            return definitions.containsKey(varName);
+            return variables.containsKey(varName);
         }
 
         void markUsed(String varName) {
@@ -273,12 +350,16 @@ public class SemanticAnalyzer {
         }
 
         SourceLocation getLocation(String varName) {
-            return definitions.get(varName);
+            return variables.get(varName);
         }
 
-        Set<String> getUnused() {
-            Set<String> unused = new HashSet<>(definitions.keySet());
-            unused.removeAll(used);
+        List<String> getUnusedVariables() {
+            List<String> unused = new ArrayList<>();
+            for (String var : variables.keySet()) {
+                if (!used.contains(var)) {
+                    unused.add(var);
+                }
+            }
             return unused;
         }
     }

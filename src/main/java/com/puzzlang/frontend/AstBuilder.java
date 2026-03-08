@@ -13,7 +13,7 @@ import java.util.regex.*;
  * AstBuilder — ANTLR parse tree → typed AST.
  *
  * Transforms the CST from ANTLR into a clean AST defined in Nodes.java.
- * Handles all expression types including the new FunctionCall.
+ * Handles all expression types including tuples and list comprehensions.
  */
 public class AstBuilder extends PuzzLangBaseVisitor<Object> {
 
@@ -46,9 +46,38 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
 
     @Override
     public VarDecl visitVarDecl(PuzzLangParser.VarDeclContext ctx) {
-        String name = ctx.ID().getText();
+        DestructureTarget target = visitDestructureTarget(ctx.destructureTarget());
         Expr value = visitExprCtx(ctx.expr());
-        return new VarDecl(name, value, SourceLocation.fromContext(ctx));
+        return new VarDecl(target, value, SourceLocation.fromContext(ctx));
+    }
+
+    /**
+     * Visit a destructure target (for let statements).
+     */
+    public DestructureTarget visitDestructureTarget(PuzzLangParser.DestructureTargetContext ctx) {
+        SourceLocation loc = SourceLocation.fromContext(ctx);
+        
+        if (ctx instanceof PuzzLangParser.SingleVarContext sv) {
+            return new SingleTarget(sv.ID().getText(), loc);
+        }
+        
+        if (ctx instanceof PuzzLangParser.TupleDestructureContext td) {
+            List<String> names = new ArrayList<>();
+            for (TerminalNode id : td.ID()) {
+                names.add(id.getText());
+            }
+            return new TupleTarget(names, loc);
+        }
+        
+        if (ctx instanceof PuzzLangParser.MultipleAssignContext ma) {
+            List<String> names = new ArrayList<>();
+            for (TerminalNode id : ma.ID()) {
+                names.add(id.getText());
+            }
+            return new TupleTarget(names, loc);
+        }
+        
+        throw new RuntimeException("Unknown destructure target: " + ctx.getClass().getSimpleName());
     }
 
     @Override
@@ -88,13 +117,34 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
 
     @Override
     public ForIn visitForInStmt(PuzzLangParser.ForInStmtContext ctx) {
-        String var = ctx.ID().getText();
+        DestructureTarget target = visitForTarget(ctx.forTarget());
         Expr iterable = visitExprCtx(ctx.expr());
         List<Stmt> body = new ArrayList<>();
         for (PuzzLangParser.StatementContext sc : ctx.statement()) {
             body.add(visitStatement(sc));
         }
-        return new ForIn(var, iterable, body, SourceLocation.fromContext(ctx));
+        return new ForIn(target, iterable, body, SourceLocation.fromContext(ctx));
+    }
+
+    /**
+     * Visit a for-loop target (single var or tuple destructure).
+     */
+    public DestructureTarget visitForTarget(PuzzLangParser.ForTargetContext ctx) {
+        SourceLocation loc = SourceLocation.fromContext(ctx);
+        
+        if (ctx instanceof PuzzLangParser.ForSingleVarContext sv) {
+            return new SingleTarget(sv.ID().getText(), loc);
+        }
+        
+        if (ctx instanceof PuzzLangParser.ForTupleDestructureContext td) {
+            List<String> names = new ArrayList<>();
+            for (TerminalNode id : td.ID()) {
+                names.add(id.getText());
+            }
+            return new TupleTarget(names, loc);
+        }
+        
+        throw new RuntimeException("Unknown for target: " + ctx.getClass().getSimpleName());
     }
 
     // ── Match Statement ─────────────────────────────────────────────────────
@@ -126,11 +176,43 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
             return new StringPattern(template, captureNames, loc);
         }
 
+        if (ctx instanceof PuzzLangParser.PatternTupleContext pt) {
+            List<TuplePatternElement> elements = new ArrayList<>();
+            for (PuzzLangParser.TuplePatternElementContext elemCtx : pt.tuplePatternElement()) {
+                elements.add(visitTuplePatternElement(elemCtx));
+            }
+            return new TuplePattern(elements, loc);
+        }
+
         if (ctx instanceof PuzzLangParser.PatternWildcardContext) {
             return new WildcardPattern(loc);
         }
 
         throw new RuntimeException("Unknown match pattern: " + ctx.getClass().getSimpleName());
+    }
+
+    /**
+     * Visit a tuple pattern element.
+     */
+    public TuplePatternElement visitTuplePatternElement(PuzzLangParser.TuplePatternElementContext ctx) {
+        if (ctx instanceof PuzzLangParser.TuplePatternIntContext ti) {
+            return new LiteralElement(Integer.parseInt(ti.INT().getText()));
+        }
+        
+        if (ctx instanceof PuzzLangParser.TuplePatternStringContext ts) {
+            String raw = ts.STRING().getText();
+            return new LiteralElement(raw.substring(1, raw.length() - 1));
+        }
+        
+        if (ctx instanceof PuzzLangParser.TuplePatternWildcardContext) {
+            return new WildcardElement();
+        }
+        
+        if (ctx instanceof PuzzLangParser.TuplePatternVarContext tv) {
+            return new BindingElement(tv.ID().getText());
+        }
+        
+        throw new RuntimeException("Unknown tuple pattern element: " + ctx.getClass().getSimpleName());
     }
 
     /**
@@ -176,37 +258,80 @@ public class AstBuilder extends PuzzLangBaseVisitor<Object> {
         if (ctx instanceof PuzzLangParser.ParensContext c)
             return visitExprCtx(c.expr());
 
+        // ── Tuple literal: (a, b, c) ─────────────────────────────────────
+        if (ctx instanceof PuzzLangParser.TupleLitContext tc) {
+            List<Expr> elements = new ArrayList<>();
+            for (PuzzLangParser.ExprContext exprCtx : tc.expr()) {
+                elements.add(visitExprCtx(exprCtx));
+            }
+            return new TupleLit(elements, loc);
+        }
+
+        // ── List literal: [1, 2, 3] ──────────────────────────────────────
+        if (ctx instanceof PuzzLangParser.ListLitContext lc) {
+            List<Expr> elements = new ArrayList<>();
+            for (PuzzLangParser.ExprContext exprCtx : lc.expr()) {
+                elements.add(visitExprCtx(exprCtx));
+            }
+            return new ListLit(elements, loc);
+        }
+
+        // ── List comprehension: [x * 2 for x in items] ───────────────────
+        if (ctx instanceof PuzzLangParser.ListComprehensionContext lcc) {
+            Expr element = visitExprCtx(lcc.expr(0));  // The element expression
+            DestructureTarget target = visitForTarget(lcc.forTarget());
+            Expr iterable = visitExprCtx(lcc.expr(1));  // The iterable
+            
+            // Check for optional condition
+            Expr condition = null;
+            if (lcc.expr().size() > 2) {
+                condition = visitExprCtx(lcc.expr(2));
+            }
+            
+            return new ListComprehension(element, target, iterable, condition, loc);
+        }
+
+        // ── Nested list comprehension: [(x, y) for x in xs for y in ys] ──
+        if (ctx instanceof PuzzLangParser.NestedListComprehensionContext nlc) {
+            Expr element = visitExprCtx(nlc.expr(0));
+            DestructureTarget target1 = visitForTarget(nlc.forTarget(0));
+            Expr iterable1 = visitExprCtx(nlc.expr(1));
+            DestructureTarget target2 = visitForTarget(nlc.forTarget(1));
+            Expr iterable2 = visitExprCtx(nlc.expr(2));
+            
+            return new ListComprehension(element, target1, iterable1, target2, iterable2, loc);
+        }
+
         // ── Binary operators ─────────────────────────────────────────────
         if (ctx instanceof PuzzLangParser.MulDivModContext c) {
-            Expr left = visitExprCtx(c.expr(0));
+            Expr left  = visitExprCtx(c.expr(0));
             Expr right = visitExprCtx(c.expr(1));
             return new BinOp(left, c.op.getText(), right, loc);
         }
 
         if (ctx instanceof PuzzLangParser.AddSubContext c) {
-            Expr left = visitExprCtx(c.expr(0));
+            Expr left  = visitExprCtx(c.expr(0));
             Expr right = visitExprCtx(c.expr(1));
             return new BinOp(left, c.op.getText(), right, loc);
         }
 
         if (ctx instanceof PuzzLangParser.CompareContext c) {
-            Expr left = visitExprCtx(c.expr(0));
+            Expr left  = visitExprCtx(c.expr(0));
             Expr right = visitExprCtx(c.expr(1));
             return new BinOp(left, c.op.getText(), right, loc);
         }
 
-        // ── Range expressions ────────────────────────────────────────────
+        // ── Ranges ───────────────────────────────────────────────────────
         if (ctx instanceof PuzzLangParser.RangeLitContext c)
             return new RangeLit(visitExprCtx(c.expr(0)), visitExprCtx(c.expr(1)), loc);
 
         if (ctx instanceof PuzzLangParser.RangeInclusiveContext c)
             return new RangeInclusive(visitExprCtx(c.expr(0)), visitExprCtx(c.expr(1)), loc);
 
-        // ── Method call: receiver.method(args) ───────────────────────────
+        // ── Method call: expr.method(args) ───────────────────────────────
         if (ctx instanceof PuzzLangParser.MethodCallContext c) {
             Expr receiver = visitExprCtx(c.expr(0));
             String method = c.method.getText();
-            // args: expr(1)..expr(n)  (expr(0) is the receiver)
             List<Expr> args = new ArrayList<>();
             for (int i = 1; i < c.expr().size(); i++) {
                 args.add(visitExprCtx(c.expr(i)));

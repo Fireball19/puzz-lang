@@ -23,7 +23,22 @@ statement
     | exprStmt
     ;
 
-varDecl    : 'let' ID '=' expr NEWLINE ;
+// Variable declaration with optional destructuring:
+//   let x = 5
+//   let (x, y) = point
+//   let a, b = b, a           (multiple assignment)
+//   let x, y, z = tuple
+varDecl
+    : 'let' destructureTarget '=' expr NEWLINE
+    ;
+
+// Destructuring target for let statements
+destructureTarget
+    : ID                                              # SingleVar
+    | '(' ID (',' ID)+ ')'                           # TupleDestructure
+    | ID (',' ID)+                                   # MultipleAssign
+    ;
+
 printStmt  : 'print' expr NEWLINE ;
 
 ifStmt
@@ -38,13 +53,22 @@ whileStmt
     ;
 
 // for x in range: — iterates over any iterable (ranges, lists)
+// for (x, y) in points: — tuple destructuring in iteration
 forInStmt
-    : 'for' ID 'in' expr ':' NEWLINE
+    : 'for' forTarget 'in' expr ':' NEWLINE
       INDENT NEWLINE? statement+ DEDENT NEWLINE?
+    ;
+
+// Target for for-in loops (single var or tuple destructure)
+forTarget
+    : ID                                              # ForSingleVar
+    | '(' ID (',' ID)+ ')'                           # ForTupleDestructure
     ;
 
 // match expr:
 //     "pattern {x}" -> statement
+//     (0, 0) -> statement
+//     (x, 0) -> statement
 //     _ -> statement
 matchStmt
     : 'match' expr ':' NEWLINE
@@ -56,8 +80,17 @@ matchArm
     ;
 
 matchPattern
-    : STRING                    # PatternString   // "move {n} from {a} to {b}"
-    | '_'                       # PatternWildcard // default/catch-all
+    : STRING                                          # PatternString   // "move {n} from {a} to {b}"
+    | '(' tuplePatternElement (',' tuplePatternElement)+ ')'  # PatternTuple   // (0, 0), (x, y), (x, 0)
+    | '_'                                             # PatternWildcard // default/catch-all
+    ;
+
+// Elements in a tuple pattern: either a literal, variable binding, or wildcard
+tuplePatternElement
+    : INT                                             # TuplePatternInt
+    | STRING                                          # TuplePatternString  
+    | '_'                                             # TuplePatternWildcard
+    | ID                                              # TuplePatternVar     // captures to variable
     ;
 
 exprStmt : expr NEWLINE ;
@@ -71,6 +104,10 @@ expr
     | expr '..' expr                         # RangeLit       // 1..10
     | expr '..=' expr                        # RangeInclusive // 1..=10
     | '(' expr ')'                           # Parens
+    | '(' expr (',' expr)+ ')'               # TupleLit       // (1, 2), (a, b, c)
+    | '[' expr 'for' forTarget 'in' expr ('if' expr)? ']'  # ListComprehension
+    | '[' expr 'for' forTarget 'in' expr 'for' forTarget 'in' expr ']'  # NestedListComprehension
+    | '[' (expr (',' expr)*)? ']'            # ListLit        // [], [1, 2, 3]
     | 'stdin' '(' ')'                        # StdinCall      // stdin()
     | 'read' '(' expr ')'                    # ReadCall       // read("file.txt")
     | ID '(' (expr (',' expr)*)? ')'         # FunctionCall   // gcd(a, b), primes_up_to(n)
