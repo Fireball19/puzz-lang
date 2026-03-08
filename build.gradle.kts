@@ -39,7 +39,7 @@ tasks.generateGrammarSource {
 sourceSets {
     main {
         java {
-            srcDir("src/main/generated-antlr")
+            srcDir("src/main/generated-antlr/com/puzzlang/parser")
         }
     }
 }
