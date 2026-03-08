@@ -66,6 +66,86 @@ list.contains(x) / .indexOf(x)
 list.join(", ")
 ```
 
+### List Comprehensions
+```python
+# Basic comprehension
+[x * x for x in 1..=10]              # [1, 4, 9, ..., 100]
+
+# With filtering
+[x for x in 1..=20 if x % 2 == 0]    # [2, 4, 6, ..., 20]
+
+# Nested comprehension
+[(x, y) for x in 1..=3 for y in 1..=3]
+
+# With tuple destructuring
+let points = [(1, 2), (3, 4), (5, 6)]
+[x + y for (x, y) in points]         # [3, 7, 11]
+```
+
+### Tuples
+```python
+# Create tuples
+let point = (3, 4)
+let triple = (1, 2, 3)
+
+# Destructuring
+let (x, y) = point
+let (a, b, c) = triple
+
+# Access elements
+point.get(0)       # 3
+point.first()      # 3
+point.last()       # 4
+point.size()       # 2
+
+# Use in comprehensions
+let coords = [(0, 0), (1, 1), (2, 2)]
+for (x, y) in coords:
+    print x + y
+```
+
+### 2D Grids
+```python
+# Create from input
+let grid = stdin().grid()              # parse as char grid
+let grid = stdin().grid(toInt)         # parse with mapper
+
+# Dimensions
+grid.width()                           # columns
+grid.height()                          # rows
+grid.bounds()                          # (width, height) tuple
+
+# Access
+grid.at(x, y)                          # bounds-checked access
+grid.get(x, y, default)                # with default for out-of-bounds
+grid.row(y)                            # entire row as list
+grid.col(x)                            # entire column as list
+
+# Iteration
+grid.cells()                           # (x, y, value) tuples
+grid.coords()                          # (x, y) coordinate tuples
+grid.neighbors(x, y)                   # 4-directional neighbors
+grid.neighbors8(x, y)                  # 8-directional neighbors
+
+# Finding
+grid.find(val)                         # first (x, y) position
+grid.find_all(val)                     # all positions
+grid.count(val)                        # count occurrences
+
+# Transformations
+grid.rotate_cw()                       # rotate 90° clockwise
+grid.rotate_ccw()                      # rotate 90° counter-clockwise
+grid.flip_h()                          # flip horizontally
+grid.flip_v()                          # flip vertically
+grid.transpose()                       # swap rows and columns
+grid.subgrid(x1, y1, x2, y2)           # extract region
+
+# Pathfinding
+grid.bfs(start, goal)                  # shortest path BFS
+grid.dijkstra(start, goal, cost_fn)    # weighted shortest path
+grid.flood_fill(start)                 # connected region
+```
+
 ### Math Builtins
 ```python
 gcd(a, b)          lcm(a, b, c)
