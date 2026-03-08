@@ -1,0 +1,26 @@
+# Advent of Code 2015 - Day 2: I Was Told There Would Be No Math
+# Run: ./gradlew run --args="aoc/2015/day2/aoc2015_day2.puzz"
+
+let input = read("aoc/2015/day2/aoc2015_day2_input.txt")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Part 1: Total square feet of wrapping paper needed
+#  Formula: surface area (2*l*w + 2*w*h + 2*h*l) + slack (smallest side area)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+let p1 = 0
+for line in input.lines():
+    let d = [x.toInt() for x in line.split("x")].sorted()
+    let p1 = p1 + 2*d.get(0)*d.get(1) + 2*d.get(1)*d.get(2) + 2*d.get(0)*d.get(2) + d.get(0)*d.get(1)
+print "Part 1: " + p1
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Part 2: Total feet of ribbon needed
+#  Formula: smallest perimeter (2*a + 2*b) + bow (volume l*w*h)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+let p2 = 0
+for line in input.lines():
+    let d = [x.toInt() for x in line.split("x")].sorted()
+    let p2 = p2 + 2*d.get(0) + 2*d.get(1) + d.get(0)*d.get(1)*d.get(2)
+print "Part 2: " + p2
