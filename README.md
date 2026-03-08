@@ -4,6 +4,7 @@
   
   [![License badge](https://img.shields.io/github/license/Fireball19/puzz-lang)](https://github.com/Fireball19/puzz-lang/blob/main/LICENSE)
   [![GitHub release badge](https://badgen.net/github/release/Fireball19/puzz-lang/stable)](https://github.com/Fireball19/puzz-lang/releases/latest)
+  [![Java CI with Gradle badge](https://github.com/Fireball19/puzz-lang/actions/workflows/gradle.yml/badge.svg?branch=develop)](https://github.com/Fireball19/puzz-lang/actions/workflows/gradle.yml)
   
 </div>
 
