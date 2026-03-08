@@ -1,5 +1,6 @@
 package com.puzzlang.runtime;
 
+import com.puzzlang.runtime.builtins.GridBuiltins;
 import com.puzzlang.runtime.builtins.IntegerBuiltins;
 import com.puzzlang.runtime.builtins.MathBuiltins;
 import com.puzzlang.runtime.builtins.RangeBuiltins;
@@ -13,7 +14,7 @@ import com.puzzlang.runtime.builtins.RangeBuiltins;
  * Method dispatch is delegated to MethodRegistry for extensibility.
  * Global function calls are delegated to MathBuiltins.
  *
- * Also handles String and PuzzList method calls directly.
+ * Also handles String, PuzzList, and PuzzGrid method calls directly.
  */
 public class PuzzRuntime {
 
@@ -46,7 +47,8 @@ public class PuzzRuntime {
     private static MethodRegistry createDefaultRegistry() {
         MethodRegistry reg = new MethodRegistry();
         RangeBuiltins.register(reg);
-        IntegerBuiltins.register(reg);  // NEW: Integer methods
+        IntegerBuiltins.register(reg);
+        GridBuiltins.register(reg);  // Grid methods
         return reg;
     }
 
@@ -79,8 +81,9 @@ public class PuzzRuntime {
      * Dispatches receiver.method(args) calls.
      *
      * Handles:
-     *   - String methods (lines, paragraphs, split, trim, etc.)
+     *   - String methods (lines, paragraphs, split, trim, grid, etc.)
      *   - PuzzList methods (count, first, last, get, join, etc.)
+     *   - PuzzGrid methods (width, height, at, neighbors, bfs, etc.)
      *   - Integer methods (digits, is_prime, gcd, etc.) via MethodRegistry
      *   - PuzzRange methods (via MethodRegistry)
      */
@@ -125,7 +128,26 @@ public class PuzzRuntime {
                 }
                 case "reverse"    -> new StringBuilder(str).reverse().toString();
                 case "repeat"     -> str.repeat(toInt(args[0]));
-                default -> throw new PuzzLangException("String has no method '%s'", method);
+                
+                // Grid parsing
+                case "grid" -> {
+                    if (args.length == 0) {
+                        yield PuzzGrid.fromString(str);
+                    } else if (args.length == 1 && "toInt".equals(String.valueOf(args[0]))) {
+                        // grid(toInt) - parse each char as integer
+                        yield PuzzGrid.fromString(str, c -> {
+                            try {
+                                return Integer.parseInt(c);
+                            } catch (NumberFormatException e) {
+                                return c; // Keep as string if not a number
+                            }
+                        });
+                    } else {
+                        throw new PuzzLangException("grid() takes 0 or 1 arguments");
+                    }
+                }
+                
+                default -> throw PuzzLangException.undefinedMethod(method, receiver);
             };
         }
 
@@ -162,7 +184,12 @@ public class PuzzRuntime {
             };
         }
 
-        // ── Delegate to MethodRegistry for other types (PuzzRange, Integer, Long, etc.)
+        // ── PuzzGrid methods (delegated to registry) ──────────────────────
+        if (receiver instanceof PuzzGrid) {
+            return getRegistry().dispatch(receiver, method, args);
+        }
+
+        // ── Delegate to registry for other types ──────────────────────────
         return getRegistry().dispatch(receiver, method, args);
     }
 
@@ -231,6 +258,7 @@ public class PuzzRuntime {
         if (val instanceof PuzzRange r)              return (Iterable<Object>)(Iterable<?>) r;
         if (val instanceof PuzzRange.SteppedRange s) return (Iterable<Object>)(Iterable<?>) s;
         if (val instanceof PuzzList l)               return l;
+        if (val instanceof PuzzGrid g)               return g;  // Grid is iterable (iterates rows)
         if (val instanceof Iterable<?> it)           return (Iterable<Object>) it;
         throw PuzzLangException.notIterable(val);
     }
@@ -275,13 +303,15 @@ public class PuzzRuntime {
     // ── Truthiness ────────────────────────────────────────────────────────────
 
     public static boolean isTruthy(Object v) {
-        if (v == null) return false;
-        if (v instanceof Boolean b) return b;
-        if (v instanceof Integer i) return i != 0;
-        if (v instanceof Long l) return l != 0;
-        if (v instanceof String s) return !s.isEmpty();
-        if (v instanceof PuzzList pl) return !pl.isEmpty();
-        return true;
+        return switch (v) {
+            case null -> false;
+            case Boolean b -> b;
+            case Integer i -> i != 0;
+            case Long l -> l != 0;
+            case String s -> !s.isEmpty();
+            case PuzzList pl -> !pl.isEmpty();
+            default -> true;
+        };
     }
 
     // ── Conversion helpers ────────────────────────────────────────────────────
